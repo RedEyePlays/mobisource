@@ -120,7 +120,9 @@ itemId           string
 skuCode          string
 donorId          string    null if imported/purchased separately
 allocatedCost    number    CAD — see §4
-grade            string
+grade            string    the SKU's grade (A|B|C|N, §1) — not the donor's
+                            condition (A|B|C|D, §3); different enums, same
+                            letters
 status           string    inStock | reserved | sold | scrapped | returned
 location         string    bin/shelf
 createdAt        timestamp
@@ -147,10 +149,21 @@ donorId          string
 performedAt      timestamp
 donorCost        number    copied from donor at time of teardown
 allocations      array     [{ skuCode, expectedResale, sharePct, allocatedCost }]
-itemsCreated     array     [itemId]
+                            sellable parts only — see §4/§6
+itemsCreated     array     [itemId] — sellable and scrapped stockItems both
 scrapped         array     [{ partType, reason }]
+notHarvested     array     [{ partType, reason }] — §6 says to log these here;
+                            this field was missing from the original doc
 costCheck        number    sum(allocatedCost) — must equal donorCost
 ```
+
+`allocations` and `costCheck` cover sellable parts only, per §4's "allocation
+runs only over parts you actually harvested and intend to sell." A scrapped
+part gets a `stockItem` (so the physical unit is visible in `itemsCreated`)
+with `allocatedCost: 0` — its share redistributes to the survivors exactly
+like a not-harvested part, per §4's worked example. The `scrap` movement
+(§6) is what makes a scrapped part's write-off visible, not a nonzero
+`allocatedCost`.
 
 ### `stockMovements` — append-only ledger
 

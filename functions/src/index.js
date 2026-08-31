@@ -4,3 +4,4 @@ initializeApp()
 
 export { intakeDonor } from './donors.js'
 export { createSku, updateSku, deactivateSku } from './skus.js'
+export { performTeardown } from './teardown.js'
