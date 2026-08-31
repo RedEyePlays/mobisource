@@ -8,7 +8,7 @@ function formatCents(cents: Cents) {
 }
 
 function margin(order: SalesOrder): Cents {
-  return order.lines.reduce((sum, line) => sum + (line.unitPrice - line.unitCost), 0) as Cents
+  return order.lines.reduce((sum, line) => sum + (line.unitPrice - line.unitCost) * line.qty, 0) as Cents
 }
 
 export default function OrderList({ onCreate }: { onCreate: () => void }) {
@@ -60,6 +60,7 @@ export default function OrderList({ onCreate }: { onCreate: () => void }) {
                 <th>Order</th>
                 <th>Buyer</th>
                 <th>Status</th>
+                <th>Payment</th>
                 <th>Total</th>
                 <th>Margin</th>
               </tr>
@@ -70,6 +71,7 @@ export default function OrderList({ onCreate }: { onCreate: () => void }) {
                   <td className="font-mono text-sm">{order.orderId}</td>
                   <td>{order.buyerId}</td>
                   <td>{order.status}</td>
+                  <td>{order.paymentMethod ?? '—'}</td>
                   <td>
                     <span className="num-md">{formatCents(order.total)}</span>
                   </td>

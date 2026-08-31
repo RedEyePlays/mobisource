@@ -90,6 +90,9 @@ export type BuyerTerms = 'prepay' | 'net7' | 'net15'
 /** docs/SCHEMA.md §3 `salesOrders.status`. */
 export type SalesOrderStatus = 'quoted' | 'confirmed' | 'shipped' | 'paid'
 
+/** docs/SCHEMA.md §3 `salesOrders.paymentMethod` — captured at confirm time for a counter sale; null for an on-account wholesale order. */
+export type PaymentMethod = 'cash' | 'card' | 'eTransfer'
+
 /** docs/SCHEMA.md §3.5 `teardownProfiles.donorGrade` — a group of two DonorCondition values. */
 export type TeardownProfileGrade = 'AB' | 'CD'
 
@@ -238,6 +241,8 @@ export interface SalesOrder {
   total: Cents
   status: SalesOrderStatus
   createdAt: Timestamp
+  /** Set by confirmOrder; null until confirmed, and stays null for an on-account order with no cash-register payment. */
+  paymentMethod: PaymentMethod | null
 }
 
 /** One row of `teardownProfiles.expectedParts`. */

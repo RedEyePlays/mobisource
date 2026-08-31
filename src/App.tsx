@@ -13,12 +13,14 @@ import StockList from './inventory/StockList'
 import Reports from './reports/Reports'
 import TeardownScreen from './teardown/TeardownScreen'
 import ReceivingScreen from './receiving/ReceivingScreen'
+import PosScreen from './pos/PosScreen'
 import type { Buyer, Sku } from './types'
 
-type Section = 'inventory' | 'donors' | 'teardown' | 'skus' | 'buyers' | 'orders' | 'receiving' | 'reports'
+type Section = 'pos' | 'inventory' | 'donors' | 'teardown' | 'skus' | 'buyers' | 'orders' | 'receiving' | 'reports'
 type View = 'list' | 'form'
 
 const NAV: { key: Section; label: string }[] = [
+  { key: 'pos', label: 'Sell' },
   { key: 'inventory', label: 'Inventory' },
   { key: 'donors', label: 'Donors' },
   { key: 'teardown', label: 'Teardown' },
@@ -31,7 +33,7 @@ const NAV: { key: Section; label: string }[] = [
 
 function AppShell() {
   const { loading, user, isStaff } = useAuth()
-  const [section, setSection] = useState<Section>('donors')
+  const [section, setSection] = useState<Section>('pos')
   const [view, setView] = useState<View>('list')
   const [editingRecord, setEditingRecord] = useState<Sku | Buyer | null>(null)
 
@@ -70,6 +72,8 @@ function AppShell() {
           </button>
         ))}
       </nav>
+
+      {section === 'pos' && <PosScreen />}
 
       {section === 'inventory' && <StockList />}
 

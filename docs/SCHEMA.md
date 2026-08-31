@@ -252,12 +252,21 @@ lines            array     [{ skuCode, itemId?, qty, unitPrice, unitCost }]
 subtotal, tax, total
 status           string    quoted | confirmed | shipped | paid
 createdAt        timestamp
+paymentMethod    string    cash | card | eTransfer | null — see §8
 ```
 
 `itemId` is set for a serialized line (one specific `stockItem`) and omitted
 for a bulk line (SKU + qty against `bulkStock`). `unitCost` is a snapshot —
-for a serialized line it's that item's `allocatedCost` at order time; it is
-never looked up again afterward.
+for a serialized line it's that item's `allocatedCost` at order time; for a
+bulk line it's `bulkStock.avgLandedCost` at order time. Neither is ever
+looked up again afterward — `confirmOrder` writes the ledger row with
+whatever `unitCost` is already sitting on the line. `subtotal` sums
+`unitPrice × qty` per line, not just `unitPrice` — `qty` is always 1 for a
+serialized line but can be more than 1 for a bulk line.
+
+`paymentMethod` is set by `confirmOrder`, not `createOrder` — a quote has no
+payment yet. It stays `null` for an on-account wholesale order (no
+cash-register payment involved); a counter sale always sets it.
 
 #### Line pricing: buyer tier vs. quantity break
 
@@ -477,7 +486,55 @@ persists the mapping. `bulkStock` and `stockMovements` only ever record
 
 ---
 
-## 8. Reports that fall out of this
+## 8. Point of sale (walk-in counter)
+
+The POS reuses `createOrder`/`confirmOrder` exactly (§3 `salesOrders`) —
+there is no separate money path for a counter sale. It just always builds
+a `bulkLines` and/or `itemIds` request from a scanned/searched cart, skips
+the "review quote" step `OrderBuilder` shows for wholesale orders, and
+calls `createOrder` then `confirmOrder` back to back the moment the
+cashier taps Charge.
+
+**Why a bulk sale only decrements `bulkStock.qtyOnHand` inside
+`confirmOrder`, never at quote time:** a quote that's never confirmed
+already happens today for serialized items (a reserved `stockItem` with no
+release path) — decrementing pooled `qtyOnHand` the same way at quote time
+would leave stock permanently short with *no ledger row to explain why*,
+breaking the invariant that `qtyOnHand` only ever moves in the same
+transaction as the `stockMovements` row that justifies it (the same rule
+`receiveBulkShipment` already follows). So:
+
+```
+createOrder  — soft check only: qty <= bulkStock.qtyOnHand right now.
+               Doesn't lock anything; a second concurrent sale can still
+               quote against the same units. unitCost snapshots
+               avgLandedCost at this moment onto the line.
+confirmOrder — re-reads bulkStock fresh, inside the same transaction that
+               writes the 'sale' movement and updates qtyOnHand. This is
+               the only authoritative check — if a second sale confirmed
+               first and there isn't enough left, this one is rejected and
+               nothing commits. The movement's unitCost is the line's
+               already-snapshotted value, not re-read here.
+```
+
+A serialized line's reservation (`stockItem.status: 'reserved'` at quote
+time) still prevents that race for itemized stock; a bulk line has no
+per-unit thing to reserve, so it's re-checked instead of pre-locked.
+
+**Walk-in buyer.** No schema change — the POS looks up a `buyers` doc named
+`Walk-in` (`type: 'retail'`, so `resolveLinePrice` gives `listPriceRetail`
+with no special-casing) and creates one via the existing `createBuyer`
+callable the first time none exists. A cashier can swap in a real buyer
+for wholesale pricing before charging.
+
+**Known gap:** `Margin per part SKU` / `Donor ROI by model` / `Yield rate`
+/ `Aging` (§9) are all derived from `stockItems`, so a bulk sale doesn't
+appear in any of them — only `Buyer revenue` (derived from `salesOrders`)
+reflects it. Not addressed here.
+
+---
+
+## 9. Reports that fall out of this
 
 | Report | Source |
 |---|---|
@@ -492,7 +549,7 @@ persists the mapping. `bulkStock` and `stockMovements` only ever record
 
 ---
 
-## 9. Build order
+## 10. Build order
 
 1. `skus` catalog + SKU generator
 2. `donors` intake (IMEI, cost, source)
@@ -502,3 +559,4 @@ persists the mapping. `bulkStock` and `stockMovements` only ever record
 6. Sales orders + buyer tiers
 7. Bulk receiving + supplierSkuMap
 8. Reports
+9. Point of sale (walk-in counter)

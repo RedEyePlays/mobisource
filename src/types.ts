@@ -52,6 +52,7 @@ export type BuyerType = 'repairShop' | 'broker' | 'exporter' | 'retail'
 export type BuyerTier = 'standard' | 'preferred' | 'partner'
 export type BuyerTerms = 'prepay' | 'net7' | 'net15'
 export type SalesOrderStatus = 'quoted' | 'confirmed' | 'shipped' | 'paid'
+export type PaymentMethod = 'cash' | 'card' | 'eTransfer'
 export type TeardownProfileGrade = 'AB' | 'CD'
 
 // ---------------------------------------------------------------------------
@@ -184,6 +185,7 @@ export interface SalesOrder {
   total: Cents
   status: SalesOrderStatus
   createdAt: Timestamp
+  paymentMethod: PaymentMethod | null
 }
 
 export interface TeardownAllocation {

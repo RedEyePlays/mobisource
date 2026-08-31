@@ -158,3 +158,25 @@
     @apply fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white/95 p-4 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-950/95;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Receipt printing (POS) — isolates .receipt-print as the only thing that
+ * prints, so hitting print doesn't also print the nav bar, cart, and the
+ * rest of the app shell around it. Plain @media print, not a Tailwind
+ * layer — nothing here needs to compose with a utility class.
+ * ------------------------------------------------------------------------ */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .receipt-print,
+  .receipt-print * {
+    visibility: visible;
+  }
+  .receipt-print {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+}

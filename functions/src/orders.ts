@@ -13,7 +13,7 @@ function requireStaff(request: CallableRequest<unknown>): void {
   }
 }
 
-export const createOrder = onCall<Partial<CreateOrderInput>>(async (request) => {
+export const createOrder = onCall<CreateOrderInput>(async (request) => {
   requireStaff(request)
   try {
     return await createOrderCore(getFirestore(), (request.data ?? {}) as CreateOrderInput)
@@ -22,7 +22,7 @@ export const createOrder = onCall<Partial<CreateOrderInput>>(async (request) => 
   }
 })
 
-export const confirmOrder = onCall<Partial<ConfirmOrderInput>>(async (request) => {
+export const confirmOrder = onCall<ConfirmOrderInput>(async (request) => {
   requireStaff(request)
   try {
     return await confirmOrderCore(getFirestore(), (request.data ?? {}) as ConfirmOrderInput)
