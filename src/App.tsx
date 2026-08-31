@@ -12,9 +12,10 @@ import OrderBuilder from './orders/OrderBuilder'
 import StockList from './inventory/StockList'
 import Reports from './reports/Reports'
 import TeardownScreen from './teardown/TeardownScreen'
+import ReceivingScreen from './receiving/ReceivingScreen'
 import type { Buyer, Sku } from './types'
 
-type Section = 'inventory' | 'donors' | 'teardown' | 'skus' | 'buyers' | 'orders' | 'reports'
+type Section = 'inventory' | 'donors' | 'teardown' | 'skus' | 'buyers' | 'orders' | 'receiving' | 'reports'
 type View = 'list' | 'form'
 
 function AppShell() {
@@ -85,6 +86,12 @@ function AppShell() {
           Orders
         </button>
         <button
+          onClick={() => goToSection('receiving')}
+          className={section === 'receiving' ? 'font-semibold' : 'text-gray-500'}
+        >
+          Receiving
+        </button>
+        <button
           onClick={() => goToSection('reports')}
           className={section === 'reports' ? 'font-semibold' : 'text-gray-500'}
         >
@@ -133,6 +140,8 @@ function AppShell() {
 
       {section === 'orders' && view === 'list' && <OrderList onCreate={() => setView('form')} />}
       {section === 'orders' && view === 'form' && <OrderBuilder onDone={() => setView('list')} />}
+
+      {section === 'receiving' && <ReceivingScreen />}
 
       {section === 'reports' && <Reports />}
     </div>

@@ -141,6 +141,51 @@ lastReceivedAt   timestamp
 reorderPoint     number
 ```
 
+Written only by the receiving callables (§7) — `qtyOnHand` and
+`avgLandedCost` are derived from `bulkReceipts`/`stockMovements`, never
+maintained independently.
+
+### `bulkReceipts` — one bulk shipment, the audit trail for its landed cost
+
+```
+receiptId          string
+supplier           string
+invoiceRef         string
+fxRate             number    USD -> CAD, captured once at receiving time
+receivedAt         timestamp
+shippingStatus     string    included | pending | applied
+shippingCurrency   string    CAD | USD, null while pending
+shippingTotal      number    cents in shippingCurrency, null while pending
+shippingTotalCAD   number    cents, null while pending
+shippingAppliedAt  timestamp null unless shippingStatus was ever 'pending'
+totalDiscrepancyCAD number   cents, see §7 — 0 unless a late shipping
+                              application left some cost unabsorbed
+lines              array     [{ skuCode, supplierSku, qty, unitCostUSD,
+                                unitCostCAD, shippingOverrideCurrency,
+                                shippingOverrideAmount,
+                                shippingOverrideAmountCAD,
+                                shippingAllocatedCAD, landedCostCAD,
+                                unitsCorrected, discrepancyCAD }]
+```
+
+`fxRate` and every line's `unitCostUSD` stay on the receipt permanently —
+`stockMovements.unitCost` only ever holds the final CAD landed cost, so
+without this the original conversion inputs would be gone the moment the
+receipt posts, and a wrong rate would be untraceable.
+
+### `supplierSkuMap` — supplier part numbers, resolved to our own skuCode
+
+```
+supplier      string
+supplierSku   string
+skuCode       string
+```
+
+Doc ID is a deterministic slug of `{supplier}__{supplierSku}` (see §7) —
+suppliers send their own part numbers, but `bulkStock` and
+`stockMovements` always record our `skuCode`; the supplier code is
+reference only.
+
 ### `teardowns` — the event that converts a donor into parts
 
 ```
@@ -369,7 +414,70 @@ Two different cases, and they need different handling:
 
 ---
 
-## 7. Reports that fall out of this
+## 7. Bulk receiving
+
+Serialized parts arrive one at a time, through a donor teardown.
+Aftermarket parts arrive by the box, on a supplier invoice priced in USD,
+often with freight billed separately — sometimes in CAD, sometimes after
+the parts themselves have already landed. `receiveBulkShipment` and
+`applyReceiptShipping` (both Cloud Function callables) cover that path.
+
+**`receiveBulkShipment`** — one shipment, atomically:
+
+```
+1. Resolve each line's skuCode (supplierSkuMap, upserted here — see below);
+   reject a skuCode that doesn't exist or isn't active.
+2. unitCostCAD = round(unitCostUSD × fxRate) per line.
+3. If shipping is known now, allocate it (below) and set landedCostCAD =
+   unitCostCAD + that line's per-unit share; shippingStatus = 'included'.
+   If not, landedCostCAD = unitCostCAD and shippingStatus = 'pending' —
+   see "Shipping arrives late" below.
+4. Update bulkStock: qtyOnHand += qty; avgLandedCost becomes the
+   qty-weighted average of the existing stock and this receipt.
+5. Write one `receive` stockMovements row per line, qty +qty, unitCost =
+   landedCostCAD.
+6. Write the bulkReceipts doc — the audit trail (fxRate + each line's
+   original unitCostUSD survive here even after landedCostCAD is later
+   corrected).
+```
+
+**Shipping allocation.** Shipping has its own currency — CAD or USD,
+independent of the parts invoice — and converts through the same
+receipt-level `fxRate` only if it's in USD. A line can carry a flat
+per-unit override for oversized items; the remaining shipping splits
+evenly, per unit, across the remaining lines. The floor-division
+remainder (there's no natural highest-value tiebreak here, unlike
+teardown cost allocation) goes to the first non-overridden line. If every
+unit is overridden and shipping still doesn't add up, that's a hard
+error — the amount has nowhere to go.
+
+**Shipping arrives late.** A receipt can post with `shipping: null` —
+parts go into stock at `unitCostCAD` only, `shippingStatus: 'pending'`.
+When the freight bill shows up, `applyReceiptShipping` runs the same
+allocation over the receipt's original lines and blends the increase into
+`bulkStock.avgLandedCost` — but caps the correction at
+`min(line.qty, bulkStock.qtyOnHand)`, since some of those units may have
+already sold. **Units already sold keep the cost they were sold at —
+this never restates historical margin, and never touches `stockMovements`
+(append-only).** The shipping cost attributable to already-sold units is
+recorded as `discrepancyCAD` on the receipt instead of being absorbed
+anywhere. `bulkStock` has no lot tracking, so "units still on hand from
+this receipt" is a cap, not a precise trace, if other receipts for the
+same skuCode landed in between — a known limitation, not a bug.
+
+### `supplierSkuMap`
+
+Suppliers send their own part numbers. `receiveBulkShipment` upserts
+`supplierSkuMap/{supplier}__{supplierSku}` for every line it processes,
+whether the mapping already existed or not — the client auto-resolves a
+known code for display and prompts the operator to pick a skuCode for an
+unknown one, but the callable is the single source of truth that actually
+persists the mapping. `bulkStock` and `stockMovements` only ever record
+`skuCode` — the supplier code is reference only.
+
+---
+
+## 8. Reports that fall out of this
 
 | Report | Source |
 |---|---|
@@ -384,7 +492,7 @@ Two different cases, and they need different handling:
 
 ---
 
-## 8. Build order
+## 9. Build order
 
 1. `skus` catalog + SKU generator
 2. `donors` intake (IMEI, cost, source)
@@ -392,4 +500,5 @@ Two different cases, and they need different handling:
 4. `stockItems` list view — filter by SKU, grade, status
 5. `stockMovements` ledger (retrofit later = painful; do it now)
 6. Sales orders + buyer tiers
-7. Reports
+7. Bulk receiving + supplierSkuMap
+8. Reports

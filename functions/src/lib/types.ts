@@ -254,3 +254,51 @@ export interface TeardownProfile {
   donorGrade: TeardownProfileGrade
   expectedParts: ExpectedPart[]
 }
+
+/** docs/SCHEMA.md §7 `bulkReceipts.shippingStatus`. */
+export type ReceiptShippingStatus = 'included' | 'pending' | 'applied'
+
+/** One row of `bulkReceipts.lines`. */
+export interface BulkReceiptLine {
+  skuCode: string
+  supplierSku: string
+  qty: number
+  unitCostUSD: Cents
+  unitCostCAD: Cents
+  /** Flat per-unit shipping override for oversized items in this line, in its own currency. Null if this line splits shipping like everyone else. */
+  shippingOverrideCurrency: PurchaseCurrency | null
+  shippingOverrideAmount: Cents | null
+  shippingOverrideAmountCAD: Cents | null
+  /** This line's total shipping share (qty × per-unit), in CAD. 0 while shippingStatus is 'pending'. */
+  shippingAllocatedCAD: Cents
+  /** unitCostCAD + this line's per-unit shipping share. Equals unitCostCAD while shippingStatus is 'pending'. */
+  landedCostCAD: Cents
+  /** Set only once shipping has been applied after being pending — how many of this line's units bulkStock still had on hand to absorb the correction into. */
+  unitsCorrected: number | null
+  /** Set only once shipping has been applied after being pending — the shipping cost for units of this line already sold before the correction landed; never charged back to those sales. */
+  discrepancyCAD: Cents | null
+}
+
+/** `bulkReceipts/{receiptId}` — the audit trail: fxRate and the original USD costs, so a wrong conversion is traceable after the fact. */
+export interface BulkReceipt {
+  receiptId: string
+  supplier: string
+  invoiceRef: string
+  fxRate: number
+  receivedAt: Timestamp
+  shippingStatus: ReceiptShippingStatus
+  shippingCurrency: PurchaseCurrency | null
+  shippingTotal: Cents | null
+  shippingTotalCAD: Cents | null
+  shippingAppliedAt: Timestamp | null
+  /** Σ lines[].discrepancyCAD — shipping cost from a late application that landed on already-sold units and was never absorbed. 0 unless that's happened. */
+  totalDiscrepancyCAD: Cents
+  lines: BulkReceiptLine[]
+}
+
+/** `supplierSkuMap/{mapId}` — doc ID is a sanitized `{supplier}__{supplierSku}` slug. Suppliers send their own part numbers; skuCode is what bulkStock/stockMovements always record. */
+export interface SupplierSkuMap {
+  supplier: string
+  supplierSku: string
+  skuCode: string
+}
