@@ -11,9 +11,10 @@ import OrderList from './orders/OrderList'
 import OrderBuilder from './orders/OrderBuilder'
 import StockList from './inventory/StockList'
 import Reports from './reports/Reports'
+import TeardownScreen from './teardown/TeardownScreen'
 import type { Buyer, Sku } from './types'
 
-type Section = 'inventory' | 'donors' | 'skus' | 'buyers' | 'orders' | 'reports'
+type Section = 'inventory' | 'donors' | 'teardown' | 'skus' | 'buyers' | 'orders' | 'reports'
 type View = 'list' | 'form'
 
 function AppShell() {
@@ -60,6 +61,12 @@ function AppShell() {
           Donors
         </button>
         <button
+          onClick={() => goToSection('teardown')}
+          className={section === 'teardown' ? 'font-semibold' : 'text-gray-500'}
+        >
+          Teardown
+        </button>
+        <button
           onClick={() => goToSection('skus')}
           className={section === 'skus' ? 'font-semibold' : 'text-gray-500'}
         >
@@ -89,6 +96,8 @@ function AppShell() {
 
       {section === 'donors' && view === 'list' && <DonorList onIntake={() => setView('form')} />}
       {section === 'donors' && view === 'form' && <DonorForm onDone={() => setView('list')} />}
+
+      {section === 'teardown' && <TeardownScreen />}
 
       {section === 'skus' && view === 'list' && (
         <SkuList
