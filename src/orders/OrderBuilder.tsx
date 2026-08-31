@@ -80,7 +80,7 @@ export default function OrderBuilder({ onDone }: { onDone: () => void }) {
   }
 
   if (quote) {
-    const margin = quote.lines.reduce((sum, line) => sum + (line.unitPrice - line.unitCost), 0)
+    const margin = quote.lines.reduce((sum, line) => sum + (line.unitPrice - line.unitCost) * line.qty, 0)
     return (
       <div className="mx-auto max-w-lg p-4 sm:p-6">
         <h2 className="page-title mb-4">Review quote</h2>

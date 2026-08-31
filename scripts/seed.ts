@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
 import { cents } from '../functions/src/lib/types.js'
-import type { Donor, Sku, TeardownProfile } from '../functions/src/lib/types.js'
+import type { BusinessConfig, Donor, Sku, TaxConfig, TeardownProfile } from '../functions/src/lib/types.js'
 
 if (!process.env.FIRESTORE_EMULATOR_HOST) {
   console.error(
@@ -158,6 +158,22 @@ const teardownProfiles: TeardownProfile[] = [
   },
 ]
 
+// docs/SCHEMA.md §3 "config" — Ontario HST, effective from the real date it
+// took effect. Dated so a future rate change is a new entry, not an edit.
+const taxConfig: TaxConfig = {
+  rates: [{ effectiveFrom: new Date('2010-07-01'), rateBps: 1300 }],
+}
+
+// Placeholder business details for the emulator/dev — a real deployment
+// replaces this doc's fields with the actual registered business info.
+const businessConfig: BusinessConfig = {
+  legalName: 'MobiSource Inc.',
+  address: '123 Repair Lane, Brampton, ON L6T 0A1',
+  email: 'accounts@mobisource.example',
+  phone: '(555) 555-0100',
+  hstNumber: '123456789 RT0001',
+}
+
 async function seed() {
   const batch = db.batch()
 
@@ -170,11 +186,13 @@ async function seed() {
   for (const doc of teardownProfiles) {
     batch.set(db.collection('teardownProfiles').doc(doc.profileId), doc)
   }
+  batch.set(db.collection('config').doc('tax'), taxConfig)
+  batch.set(db.collection('config').doc('business'), businessConfig)
 
   await batch.commit()
 
   console.log(
-    `Seeded ${skus.length} skus, ${donors.length} donors, ${teardownProfiles.length} teardownProfiles.`,
+    `Seeded ${skus.length} skus, ${donors.length} donors, ${teardownProfiles.length} teardownProfiles, config/tax, config/business.`,
   )
 }
 

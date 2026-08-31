@@ -217,7 +217,7 @@ Every change to stock writes a row here. Nothing edits quantity directly.
 ```
 movementId       string
 at               timestamp
-type             string    receive | teardownIn | teardownOut | sale | return | scrap | adjust | transfer
+type             string    receive | teardownIn | teardownOut | sale | return | scrap | adjust | transfer | release
 skuCode          string
 itemId           string    serialized only
 qty              number    +/-
@@ -236,7 +236,12 @@ type             string    repairShop | broker | exporter | retail
 tier             string    standard | preferred | partner
 terms            string    prepay | net7 | net15
 contact          object
+taxStatus        string    taxable | exempt | zeroRated — default taxable, see §11
 ```
+
+A buyer doc written before `taxStatus` existed has no such field at all —
+every read site treats a missing field the same as `taxable`
+(`buyer.taxStatus ?? 'taxable'`), so there is no backfill migration.
 
 `tier` is ordered worst-to-best for the buyer: `standard` is the default,
 `partner` is the best (e.g. a high-volume repeat account). Named this way —
@@ -249,15 +254,37 @@ pricing rule below.
 orderId          string
 buyerId          string
 lines            array     [{ skuCode, itemId?, qty, unitPrice, unitCost }]
-subtotal, tax, total
-status           string    quoted | confirmed | shipped | paid
+subtotal         number    cents — Σ unitPrice × qty across lines
+tax              number    cents — see §11; 0 for an exempt/zeroRated buyer
+taxRateBps       number    the rate actually applied, basis points (1300 = 13%);
+                            0 for an exempt/zeroRated buyer even though a
+                            nonzero rate was configured — see §11
+taxStatus        string    the buyer's taxStatus *as of confirm* — snapshotted
+                            here so it can never drift from what was charged
+total            number    cents — subtotal + tax
+status           string    quoted | confirmed | shipped | paid | cancelled — see §14
 createdAt        timestamp
+paymentMethod    string    cash | card | eTransfer | null — see §8
 ```
+
+`tax`, `taxRateBps`, `taxStatus`, and `total` are all computed fresh by
+`confirmOrder` at confirm time and then frozen — see §11. `createOrder`
+computes the same fields as a non-authoritative preview so the quote-review
+screen shows a realistic number, but only `confirmOrder`'s values are ever
+written to a *confirmed* order, and never recomputed after that.
 
 `itemId` is set for a serialized line (one specific `stockItem`) and omitted
 for a bulk line (SKU + qty against `bulkStock`). `unitCost` is a snapshot —
-for a serialized line it's that item's `allocatedCost` at order time; it is
-never looked up again afterward.
+for a serialized line it's that item's `allocatedCost` at order time; for a
+bulk line it's `bulkStock.avgLandedCost` at order time. Neither is ever
+looked up again afterward — `confirmOrder` writes the ledger row with
+whatever `unitCost` is already sitting on the line. `subtotal` sums
+`unitPrice × qty` per line, not just `unitPrice` — `qty` is always 1 for a
+serialized line but can be more than 1 for a bulk line.
+
+`paymentMethod` is set by `confirmOrder`, not `createOrder` — a quote has no
+payment yet. It stays `null` for an on-account wholesale order (no
+cash-register payment involved); a counter sale always sets it.
 
 #### Line pricing: buyer tier vs. quantity break
 
@@ -294,6 +321,28 @@ it worse. Worked examples, given `listPriceTier1=$100` (1-4u),
 This resolution always happens server-side in the order-building callable —
 a client never supplies or sees the other tiers' prices for a line it
 didn't order.
+
+### `config` — dated business/tax configuration
+
+Two fixed docs, staff-read/`write: if false` (like `teardownProfiles`) —
+populated by `scripts/seed.ts` for dev/emulator and by direct admin-SDK
+access in production. No in-app editor exists; none was asked for.
+
+```
+config/tax
+  rates          array     [{ effectiveFrom: timestamp, rateBps: number }]
+```
+
+```
+config/business
+  legalName      string
+  address        string
+  email          string
+  phone          string
+  hstNumber      string    HST registration number, shown on invoices — see §11
+```
+
+See §11 for how `config/tax.rates` is picked and frozen, and where `hstNumber` is used.
 
 ## 3.5 Teardown profiles
 
@@ -477,7 +526,55 @@ persists the mapping. `bulkStock` and `stockMovements` only ever record
 
 ---
 
-## 8. Reports that fall out of this
+## 8. Point of sale (walk-in counter)
+
+The POS reuses `createOrder`/`confirmOrder` exactly (§3 `salesOrders`) —
+there is no separate money path for a counter sale. It just always builds
+a `bulkLines` and/or `itemIds` request from a scanned/searched cart, skips
+the "review quote" step `OrderBuilder` shows for wholesale orders, and
+calls `createOrder` then `confirmOrder` back to back the moment the
+cashier taps Charge.
+
+**Why a bulk sale only decrements `bulkStock.qtyOnHand` inside
+`confirmOrder`, never at quote time:** a quote that's never confirmed
+already happens today for serialized items (a reserved `stockItem` with no
+release path) — decrementing pooled `qtyOnHand` the same way at quote time
+would leave stock permanently short with *no ledger row to explain why*,
+breaking the invariant that `qtyOnHand` only ever moves in the same
+transaction as the `stockMovements` row that justifies it (the same rule
+`receiveBulkShipment` already follows). So:
+
+```
+createOrder  — soft check only: qty <= bulkStock.qtyOnHand right now.
+               Doesn't lock anything; a second concurrent sale can still
+               quote against the same units. unitCost snapshots
+               avgLandedCost at this moment onto the line.
+confirmOrder — re-reads bulkStock fresh, inside the same transaction that
+               writes the 'sale' movement and updates qtyOnHand. This is
+               the only authoritative check — if a second sale confirmed
+               first and there isn't enough left, this one is rejected and
+               nothing commits. The movement's unitCost is the line's
+               already-snapshotted value, not re-read here.
+```
+
+A serialized line's reservation (`stockItem.status: 'reserved'` at quote
+time) still prevents that race for itemized stock; a bulk line has no
+per-unit thing to reserve, so it's re-checked instead of pre-locked.
+
+**Walk-in buyer.** No schema change — the POS looks up a `buyers` doc named
+`Walk-in` (`type: 'retail'`, so `resolveLinePrice` gives `listPriceRetail`
+with no special-casing) and creates one via the existing `createBuyer`
+callable the first time none exists. A cashier can swap in a real buyer
+for wholesale pricing before charging.
+
+**Known gap:** `Margin per part SKU` / `Donor ROI by model` / `Yield rate`
+/ `Aging` (§9) are all derived from `stockItems`, so a bulk sale doesn't
+appear in any of them — only `Buyer revenue` (derived from `salesOrders`)
+reflects it. Not addressed here.
+
+---
+
+## 9. Reports that fall out of this
 
 | Report | Source |
 |---|---|
@@ -492,7 +589,7 @@ persists the mapping. `bulkStock` and `stockMovements` only ever record
 
 ---
 
-## 9. Build order
+## 10. Build order
 
 1. `skus` catalog + SKU generator
 2. `donors` intake (IMEI, cost, source)
@@ -502,3 +599,371 @@ persists the mapping. `bulkStock` and `stockMovements` only ever record
 6. Sales orders + buyer tiers
 7. Bulk receiving + supplierSkuMap
 8. Reports
+9. Point of sale (walk-in counter)
+10. Tax (HST), invoices, returns, quote expiry, stock adjustments
+
+---
+
+## 11. Tax (HST)
+
+Ontario HST, 13% as of writing — but the rate is **configured, not
+hardcoded**, and **dated**, per `config/tax` (§3):
+
+```
+rates: [{ effectiveFrom, rateBps }]
+```
+
+`rateBps` is basis points (1300 = 13%), not a decimal, so the rate is
+always an exact integer — no float rounding on the rate itself, only on
+the one place tax actually gets computed:
+
+```
+tax = round(subtotal × rateBps / 10000)     — half-up (Math.round), the
+                                               only rounding step, applied
+                                               once to the whole order
+                                               subtotal, never per line
+```
+
+**Picking the rate:** `currentTaxRateBps(rates, asOf)` — the entry with the
+latest `effectiveFrom` that isn't after `asOf`. Adding a new dated entry
+changes what a *future* order is charged without touching any order
+that's already confirmed; there is no edit-in-place path for a rate.
+
+**When it's calculated — and frozen:**
+
+- `createOrder` computes `tax`/`taxRateBps` as a **preview**, using the
+  rate in effect right now and the buyer's current `taxStatus`, purely so
+  the quote-review screen shows a realistic number. This is
+  non-authoritative.
+- `confirmOrder` re-reads both the buyer's `taxStatus` and `config/tax`
+  **fresh**, inside the same transaction that confirms the order, and
+  computes the real `tax`/`taxRateBps`/`taxStatus`/`total`. These are
+  written onto the order **once** and never recomputed again — a change to
+  the buyer's `taxStatus` or to `config/tax` after this point can never
+  move an already-confirmed order's tax, even though it would change what
+  a *new* order gets charged. This is the literal meaning of "a past
+  order's tax must never move."
+
+**`buyers.taxStatus`:** `taxable | exempt | zeroRated`, default `taxable`.
+Exempt and zero-rated both charge $0 HST — the distinction is kept because
+they mean different things on a real HST return (zero-rated supplies still
+count toward taxable revenue for input-tax-credit purposes, exempt
+supplies don't), even though nothing in this codebase acts on that
+difference yet beyond charging $0 either way.
+
+**HST registration number:** `config/business.hstNumber` — grouped with
+the rest of the business identity fields (§3), not with `config/tax`,
+since it's invoice/business-identity information, not a rate.
+
+---
+
+## 12. Invoices
+
+An invoice is **a record, not a view** — once issued it must never change,
+even if the underlying order, buyer, SKU catalog, or business config
+change afterward. Two collections:
+
+### `invoices`
+
+Doc ID = the source order's `orderId` — a confirmed order has exactly one
+invoice, and this is what makes issuing idempotent (re-issuing just returns
+the same doc) without a query.
+
+```
+invoiceId        string    == orderId (doc id)
+invoiceNumber    number    sequential, gap-free, never reused — see counters/invoices below
+orderId          string
+issuedAt         timestamp
+business         object    config/business, copied in at issue time
+buyerName        string    copied from the buyer at issue time
+buyerTerms       string    copied from the buyer at issue time
+lines            array     [{ skuCode, description, qty, unitPrice, lineTotal }]
+subtotal, taxRateBps, tax, total   copied straight from the confirmed order
+```
+
+`description` is composed once, at issue time, from the SKU catalog
+(`"{partType} · {model} · Grade {grade}"`) and then frozen — a later edit
+to that SKU never touches an invoice that already shipped with the old
+description. Same reasoning for `business`, `buyerName`, and `buyerTerms`:
+each is a snapshot, not a reference.
+
+### `counters/invoices`
+
+```
+last             number    the last invoice number issued; 0 (doc absent)
+                            before the first invoice ever
+```
+
+`issueInvoice` reads this and the new invoice doc inside one transaction:
+if `invoices/{orderId}` already exists, it returns that doc unchanged and
+never touches the counter; otherwise it computes `last + 1`, writes both
+the invoice and the counter, and returns the new invoice. Firestore's
+transaction semantics are what make this sequential and gap-free — a
+failed issuance (e.g. the order doesn't exist) never commits, so it never
+consumes a number, and two concurrent issuances for different orders can't
+land on the same number.
+
+### Generating the PDF
+
+`getInvoicePdf({ orderId })` calls `issueInvoice` (create-or-return) and
+then renders the resulting invoice doc to PDF bytes, returned as base64 —
+matching this codebase's onCall-only convention (no separate HTTP
+endpoint). The PDF is generated fresh from the frozen invoice doc on
+**every** call, never stored as a binary — since the invoice doc itself
+never changes, a re-download always renders the same content: business
+details, buyer details, invoice number, date, payment terms, every line
+item (SKU, description, qty, unit price, line total), subtotal, the HST
+line (rate + amount), and total.
+
+Downloadable from the sales-order list (`OrderList`) for any order past
+`quoted` status.
+
+---
+
+## 13. Returns and DOA
+
+A return is one event against a **confirmed** order, made up of one or more
+lines — each with its own quantity, reason, and disposition. An order can
+have several separate return events over time (a partial DOA today, a
+different partial return next week), so `returns` uses an auto-generated
+doc ID rather than `orderId`.
+
+```
+returns/{returnId}
+  returnId       string
+  orderId        string
+  lines          array     [{ skuCode, itemId?, qty, reason, disposition,
+                              unitPrice, unitCost }]
+  subtotal       number    cents — Σ unitPrice × qty across all returned
+                            lines, refunded regardless of disposition
+  taxRateBps     number    copied from the order's frozen taxRateBps
+  tax            number    cents — the proportional tax reversed
+  total          number    cents — subtotal + tax, the amount credited
+  createdAt      timestamp
+```
+
+`reason`: `DOA | wrongPart | changedMind`. `disposition`: `restock |
+writeOff`, chosen independently per line — a DOA part can still be
+restocked (e.g. it's fine, the buyer just didn't want it) and a
+changed-mind return could still be written off if it comes back damaged.
+`itemId` is set for a serialized line (`qty` always 1); omitted for a bulk
+line. `unitPrice`/`unitCost` are snapshotted from the matching order line
+at return time — never re-derived.
+
+**A return requires an invoice to already exist for the order.**
+`issueInvoice` runs in its own transaction and can't be nested inside
+`processReturn`'s, so if no invoice has been issued yet, `processReturn`
+rejects rather than trying to issue one inline.
+
+**Quantity tracking across multiple return events:** `processReturn`
+reads every prior `returns` doc for the order (inside its own transaction,
+so this is race-safe against a second concurrent return) and sums already-
+returned qty per line, keyed by `itemId` for a serialized line or
+`skuCode` for a bulk line. A request is rejected if it would return more
+than the order line's original qty.
+
+### Restock vs write-off
+
+**Restock (serialized):** `stockItems.status` goes `sold → inStock`,
+`soldPrice`/`soldDate`/`buyerId` cleared — the unit becomes ordinary
+sellable stock again, **at its original `allocatedCost`**, which was never
+mutated by the sale in the first place, so there's nothing to recompute.
+
+**Restock (bulk):** `bulkStock.qtyOnHand += qty`. Decision made without
+asking: `avgLandedCost` is re-blended — `(currentQty × currentAvg +
+returnedQty × line.unitCost) / (currentQty + returnedQty)` — the same
+qty-weighted-average shape `receiveBulkShipment` (§7) already uses,
+applied to a return instead of a receipt. The alternative (leave
+`avgLandedCost` untouched) would silently value the returned units at
+whatever the *current* average happens to be instead of what they actually
+cost, which only stays correct by coincidence.
+
+**Write-off (serialized):** `stockItems.status` goes `sold → returned` —
+**not** `scrapped`. `soldPrice`/`soldDate`/`buyerId` are kept, not
+cleared, as history. This is a hard distinction from a teardown scrap
+(`scrapped`, §6, never sold, `allocatedCost` normally 0): `returned` marks
+a unit that **was** sold, refunded, and never recovered — see the margin
+report fix below.
+
+**Write-off (bulk):** no `bulkStock` change at all — the units left the
+count when they were sold (§8) and a write-off doesn't bring them back.
+
+### Ledger
+
+Every returned unit writes a `return` movement (never edits the original
+`sale` row):
+
+```
+restock (serialized)   qty +1     — reverses the sale's qty -1
+restock (bulk)          qty +qty   — reverses the sale's qty -qty
+writeOff (any)           qty 0      — nothing about counted stock changes;
+                                       the row exists purely as an audit
+                                       trail entry (reason/disposition in
+                                       `note`)
+```
+
+### Credit notes
+
+```
+creditNotes/{returnId}   -- doc ID = the return event's own id (1:1)
+  creditNoteId     string
+  creditNoteNumber number    sequential, gap-free, never reused — its own
+                              counter (counters/creditNotes), independent
+                              of invoice numbers
+  returnId         string
+  orderId          string
+  invoiceNumber    number    the invoice this credit note reverses,
+                              snapshotted at return time
+  issuedAt         timestamp
+  business, buyerName, buyerTerms   snapshotted from the invoice directly
+                              (not re-read from config/buyers) — a credit
+                              note should always agree with the invoice it
+                              credits
+  lines            array     [{ skuCode, description, qty, unitPrice,
+                              lineTotal }] — description reused from the
+                              invoice's own line, same reasoning as above
+  subtotal, taxRateBps, tax, total   the amount credited (see below)
+```
+
+**Reversing the proportional tax:** decision made without asking —
+`tax = calculateTax({ subtotal: <returned lines' subtotal>, taxStatus:
+order.taxStatus, rateBps: order.taxRateBps }).tax`, i.e. the same tax
+function applied fresh to the returned portion's own subtotal, at the
+order's frozen rate. This is exactly "the proportional tax" for a flat
+single-rate order (there's only one rate per order, so tax on any slice of
+the subtotal is that slice times the rate) and avoids the alternative —
+computing a fraction of the original order's already-rounded tax — which
+would drift under repeated partial returns.
+
+`getCreditNotePdf({ returnId })` renders the frozen `creditNotes/{returnId}`
+doc to PDF, the same fresh-every-call, frozen-record pattern as
+`getInvoicePdf` (§12).
+
+### Margin report
+
+`marginBySku` (§9) now also folds in `stockItems` with `status: 'returned'`
+(kept `soldPrice` = its history of having sold) as a pure loss: **$0
+revenue, its full `allocatedCost` still charged**, tallied separately as
+`returnedCount` rather than `soldCount`. Without this, a written-off return
+would just vanish from the report the moment its status left `sold` — no
+revenue, but no cost either — making a SKU with heavy DOA look exactly
+like it was never sold, instead of like it lost money. A **restocked**
+return needs no special handling: it goes back to `inStock`, correctly
+falls out of the sold set, and is counted in `inStockCount` like any other
+unit — the sale really is void, so nothing should look like a loss there.
+
+Bulk returns are outside `marginBySku`'s scope, same as bulk sales
+already are (§8's "Known gap") — bulk items have no per-unit
+`stockItems` doc for the report to key off of.
+
+---
+
+## 14. Quote expiry and cancellation
+
+An abandoned quote holds a serialized item reserved forever unless
+something releases it. Two paths, same underlying mechanics:
+
+**`cancelOrder({ orderId })`** — a person cancels a still-`quoted` order
+explicitly. Only valid from `quoted`; a confirmed sale is reversed through
+a return (§13), not a cancel.
+
+**The 7-day auto-expiry sweep** — `expireStaleQuotes`, an `onSchedule`
+Cloud Function (decision made without asking: runs every 24 hours — the
+task says quotes older than 7 days should expire but not how often to
+check; daily keeps nothing abandoned much past a week while staying cheap)
+finds every `quoted` order and cancels the ones older than 7 days, reusing
+`cancelOrder`'s own transaction for each one — one place that knows how to
+safely unwind a quote, whether a person or a timer triggered it. Fetches
+all `quoted` orders with a single-field equality query and filters by age
+in code, rather than a composite `(status, createdAt)` index — `quoted` is
+always a small, bounded set (everything else has already moved to a
+terminal status), so this stays correct without an index deployment.
+
+**What actually happens on cancel, for each line:**
+
+```
+serialized line   stockItems.status: reserved -> inStock
+                   stockMovements: type 'release', qty +1, unitCost = the
+                   order line's snapshotted unitCost — reverses createOrder's
+                   reservation
+
+bulk line          nothing — createOrder never decremented bulkStock at
+                   quote time (§8: only a soft, point-in-time check), so
+                   there's nothing held to release
+```
+
+Decision made without asking: `release` is a new `stockMovements.type`
+value (§3) — none of the existing ones (`return`, `adjust`, `transfer`...)
+cleanly means "a reservation was let go, no sale ever happened, nothing
+about counted stock actually changed." Reusing `return` would conflate
+this with a completed-sale reversal (§13) in reports; reusing `adjust`
+would conflate it with a cycle-count correction (§15). The task's own
+"nothing silently changes stock" only requires *a* ledger row exists here,
+not which type it carries — but the item's original *reservation*
+(`createOrder`, §3) still writes none, unchanged: reserving isn't a stock
+movement any more than it was before this piece, only releasing one is.
+
+Both `cancelOrder` and the sweep set `status: 'cancelled'` — the same
+terminal status regardless of which one triggered it (decision made
+without asking: the task doesn't ask for the order list to distinguish
+"cancelled by a person" from "auto-expired," so this doesn't add a second
+status just to carry that distinction; the movement's `note` field still
+records which happened, for the curious).
+
+**Quote age**, shown in `OrderList` for any `quoted` order, is `now -
+createdAt` in whole days — informational only; it's not what the sweep
+uses to decide (the sweep re-derives age itself, server-side, at run
+time).
+
+---
+
+## 15. Stock adjustments and cycle counts
+
+`adjustStock({ itemId | skuCode, newStatus | newQty, reason })` — one
+callable, two modes (picking a SKU or an item, per the task's own
+wording), matching the two shapes stock corrections actually take:
+
+**Item mode (`itemId`, `newStatus`)** — fixes one serialized unit's
+status directly: found on the shelf when the system says `sold`, missing
+when it says `inStock`, etc. `reason` is required, free text.
+
+**SKU mode (`skuCode`, `newQty`)** — the cycle-count screen's mode: what's
+physically there, for a whole SKU.
+
+```
+bulk SKU          delta = newQty - bulkStock.qtyOnHand; qtyOnHand is set
+                  to newQty directly. avgLandedCost is never touched by an
+                  adjustment — a miscount isn't a new cost basis.
+
+serialized SKU    "current" = count of that SKU's stockItems with
+                  status: inStock. A *decrease* (fewer found than
+                  tracked) writes off however many are missing — picked
+                  arbitrarily from the inStock set, since a headcount
+                  alone can't say *which* unit is gone; if the specific
+                  unit is known, adjust it directly by itemId instead. An
+                  *increase* is rejected: a serialized unit needs a real
+                  cost basis from a donor teardown or intake (docs/
+                  SCHEMA.md §4/§5), and a headcount has none to give it —
+                  "implement the default and flag it": the default here is
+                  refusing to invent stock, not silently absorbing it.
+```
+
+Either mode, when the correction is a genuine no-op (the requested status
+or quantity already matches), returns without writing anything — only a
+real correction gets a movement.
+
+**Ledger:** every correction writes one `adjust` movement per affected
+unit (never edits an existing row), carrying the delta actually applied —
+`+1`/`-1` for an item, the full `newQty - current` delta for a bulk SKU,
+one `-1` row per written-off unit for a serialized SKU. `reason` lands in
+the movement's `note` field.
+
+**The count screen** (`CountScreen`) is the UI for SKU mode: pick a SKU,
+see the system's current count, enter what's physically there, see the
+variance, and commit — which is exactly `adjustStock({ skuCode, newQty,
+reason })`.
+
+**The adjustments report** (`Reports` → Adjustments tab) lists every
+`adjust` movement — when, which SKU/item, the qty delta, and why —
+newest first, straight off the ledger; nothing else needed to compute
+"what was corrected."

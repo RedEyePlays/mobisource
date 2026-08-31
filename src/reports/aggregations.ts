@@ -117,10 +117,20 @@ export function donorRoiByModel(donors: DonorRoiInput[], stockItems: StockItemFo
 }
 
 // ---------------------------------------------------------------------------
-// Margin per SKU — docs/SCHEMA.md §7. soldPrice - allocatedCost, grouped by
-// skuCode. Only `sold` items have a soldPrice, so every total here is over
-// sold items only; `inStockCount` rides alongside so a great margin on a
-// couple of sales with a pile still unsold reads as the partial result it is.
+// Margin per SKU — docs/SCHEMA.md §7/§13. soldPrice - allocatedCost, grouped
+// by skuCode, over `sold` items. `inStockCount` rides alongside so a great
+// margin on a couple of sales with a pile still unsold reads as the partial
+// result it is.
+//
+// A returned item that got *restocked* (status back to 'inStock') is meant
+// to just fall out of the sold set here — the sale is void, and it's
+// sellable again, correctly counted in inStockCount instead. A returned
+// item that got *written off* is different: `status: 'returned'` with
+// `soldPrice` kept as history (processReturn.ts) marks a unit that was
+// sold, refunded via its credit note, and never recovered — the allocated
+// cost is a real, permanent loss with zero revenue. Folding that into
+// totalCost with $0 revenue is what keeps a SKU with heavy DOA from just
+// quietly losing its bad sales and looking clean.
 // ---------------------------------------------------------------------------
 
 export interface StockItemForMargin {
@@ -134,6 +144,8 @@ export interface SkuMarginRow {
   skuCode: string
   soldCount: number
   inStockCount: number
+  /** Sold, then returned and written off — never restocked, never recovered. */
+  returnedCount: number
   totalRevenue: Cents
   totalCost: Cents
   totalMargin: Cents
@@ -152,14 +164,19 @@ export function marginBySku(stockItems: StockItemForMargin[]): SkuMarginRow[] {
   const rows: SkuMarginRow[] = Array.from(bySku.entries()).map(([skuCode, items]) => {
     const sold = items.filter((item) => item.status === 'sold')
     const inStockCount = items.filter((item) => item.status === 'inStock').length
+    const writtenOffReturns = items.filter((item) => item.status === 'returned' && item.soldPrice != null)
+
     const totalRevenue = cents(sold.reduce((sum, item) => sum + (item.soldPrice ?? 0), 0))
-    const totalCost = cents(sold.reduce((sum, item) => sum + item.allocatedCost, 0))
+    const soldCost = sold.reduce((sum, item) => sum + item.allocatedCost, 0)
+    const writtenOffCost = writtenOffReturns.reduce((sum, item) => sum + item.allocatedCost, 0)
+    const totalCost = cents(soldCost + writtenOffCost)
     const totalMargin = cents(totalRevenue - totalCost)
 
     return {
       skuCode,
       soldCount: sold.length,
       inStockCount,
+      returnedCount: writtenOffReturns.length,
       totalRevenue,
       totalCost,
       totalMargin,
@@ -350,4 +367,42 @@ export function buyerRevenue(salesOrders: SalesOrderForRevenue[], buyers: BuyerI
   }))
 
   return rows.sort((a, b) => b.totalRevenue - a.totalRevenue)
+}
+
+// ---------------------------------------------------------------------------
+// Adjustments report — docs/SCHEMA.md §15. Every stock correction (a
+// cycle-count variance or a single-item status fix, adjustStock.ts) writes
+// an 'adjust' stockMovements row; this just orders them for display —
+// newest first, so "what was corrected, when, and why" reads chronologically.
+// ---------------------------------------------------------------------------
+
+export interface AdjustmentMovementInput {
+  movementId: string
+  at: TimestampLike
+  skuCode: string | null
+  itemId: string
+  qty: number
+  note: string
+}
+
+export interface AdjustmentRow {
+  movementId: string
+  at: Date
+  skuCode: string
+  itemId: string
+  qty: number
+  reason: string
+}
+
+export function adjustmentsReport(movements: AdjustmentMovementInput[]): AdjustmentRow[] {
+  return movements
+    .map((m) => ({
+      movementId: m.movementId,
+      at: m.at.toDate(),
+      skuCode: m.skuCode ?? '',
+      itemId: m.itemId,
+      qty: m.qty,
+      reason: m.note,
+    }))
+    .sort((a, b) => b.at.getTime() - a.at.getTime())
 }

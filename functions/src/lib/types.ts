@@ -74,6 +74,7 @@ export type MovementType =
   | 'scrap'
   | 'adjust'
   | 'transfer'
+  | 'release'
 
 /** docs/SCHEMA.md §3 `stockMovements.brand`. */
 export type MovementBrand = 'mobisource' | 'flipthattech'
@@ -87,8 +88,14 @@ export type BuyerTier = 'standard' | 'preferred' | 'partner'
 /** docs/SCHEMA.md §3 `buyers.terms`. */
 export type BuyerTerms = 'prepay' | 'net7' | 'net15'
 
-/** docs/SCHEMA.md §3 `salesOrders.status`. */
-export type SalesOrderStatus = 'quoted' | 'confirmed' | 'shipped' | 'paid'
+/** docs/SCHEMA.md §3 `buyers.taxStatus` — default 'taxable'. exempt/zeroRated both charge 0 HST; kept as separate statuses since they mean different things on a real return, even though this codebase treats them identically today (see calculateTax.ts). */
+export type BuyerTaxStatus = 'taxable' | 'exempt' | 'zeroRated'
+
+/** docs/SCHEMA.md §3 `salesOrders.status` — 'cancelled' is terminal, from either an explicit cancelOrder or the 7-day auto-expiry sweep (§14). */
+export type SalesOrderStatus = 'quoted' | 'confirmed' | 'shipped' | 'paid' | 'cancelled'
+
+/** docs/SCHEMA.md §3 `salesOrders.paymentMethod` — captured at confirm time for a counter sale; null for an on-account wholesale order. */
+export type PaymentMethod = 'cash' | 'card' | 'eTransfer'
 
 /** docs/SCHEMA.md §3.5 `teardownProfiles.donorGrade` — a group of two DonorCondition values. */
 export type TeardownProfileGrade = 'AB' | 'CD'
@@ -217,6 +224,8 @@ export interface Buyer {
   tier: BuyerTier
   terms: BuyerTerms
   contact: BuyerContact
+  /** docs/SCHEMA.md §3 — default 'taxable'. A doc written before this field existed has none; every reader treats that the same as 'taxable', so no backfill migration is needed. */
+  taxStatus: BuyerTaxStatus
 }
 
 /** One row of `salesOrders.lines`. `itemId` is set for a serialized line, omitted for a bulk line. */
@@ -234,10 +243,17 @@ export interface SalesOrder {
   buyerId: string
   lines: OrderLine[]
   subtotal: Cents
+  /** Provisional (against the buyer's and config's current values) while status is 'quoted'; confirmOrder recomputes and freezes it — never touched again after that, even if the buyer's taxStatus or the configured rate later changes. */
   tax: Cents
+  /** The rate actually applied, in basis points (1300 = 13%) — 0 if the buyer was exempt/zeroRated. Frozen at confirm time alongside `tax`. */
+  taxRateBps: number
+  /** The buyer's taxStatus as of confirm time, snapshotted for the same reason as taxRateBps. */
+  taxStatus: BuyerTaxStatus
   total: Cents
   status: SalesOrderStatus
   createdAt: Timestamp
+  /** Set by confirmOrder; null until confirmed, and stays null for an on-account order with no cash-register payment. */
+  paymentMethod: PaymentMethod | null
 }
 
 /** One row of `teardownProfiles.expectedParts`. */
@@ -301,4 +317,149 @@ export interface SupplierSkuMap {
   supplier: string
   supplierSku: string
   skuCode: string
+}
+
+// ---------------------------------------------------------------------------
+// `config` — reference values that change rarely and are never client-
+// written (same staff-read/write:false shape as skus/teardownProfiles).
+// Seeded via scripts/seed.ts for the emulator; a real deployment updates
+// these directly via the admin SDK, the same way teardownProfiles is
+// maintained — no in-app editor exists for either, and this task didn't
+// ask for one.
+// ---------------------------------------------------------------------------
+
+/** One entry in `config/tax`'s rate history. */
+export interface TaxRateEntry {
+  /** The rate takes effect at this instant, inclusive, and holds until a later entry's effectiveFrom. */
+  effectiveFrom: Timestamp
+  /** Basis points — 1300 = 13%. Integer, so tax math never touches a float. */
+  rateBps: number
+}
+
+/** `config/tax` — dated so a rate change never moves the tax already charged on a past order (see calculateTax.ts / SalesOrder.taxRateBps). */
+export interface TaxConfig {
+  rates: TaxRateEntry[]
+}
+
+/** `config/business` — shown on invoices (docs/SCHEMA.md §11). */
+export interface BusinessConfig {
+  legalName: string
+  address: string
+  email: string
+  phone: string
+  /** CRA HST registration number. */
+  hstNumber: string
+}
+
+// ---------------------------------------------------------------------------
+// `invoices` (docs/SCHEMA.md §12) — a record, not a view. Everything on the
+// doc is a snapshot taken when the invoice was issued: business details,
+// buyer name/terms, and each line's human-readable description are copied
+// in at issue time so a later edit to config/business, the buyer, or the
+// SKU catalog can never retroactively change an already-issued invoice.
+// subtotal/taxRateBps/tax/total are copied straight from the confirmed
+// order, which is itself already frozen (§11) — never recomputed here.
+// ---------------------------------------------------------------------------
+
+/** One row of `invoices.lines`. */
+export interface InvoiceLine {
+  skuCode: string
+  /** Composed at issue time from the SKU catalog, e.g. "SCRN · IP14P · Grade A" — snapshotted so a later SKU edit can't change an issued invoice. */
+  description: string
+  qty: number
+  unitPrice: Cents
+  lineTotal: Cents
+}
+
+/** `invoices/{orderId}` — doc ID is the source order's orderId; one confirmed order has exactly one invoice, and this makes re-issuing idempotent (see issueInvoice.ts). */
+export interface Invoice {
+  invoiceId: string
+  /** Sequential, gap-free, never reused — assigned from counters/invoices in the same transaction that creates this doc. */
+  invoiceNumber: number
+  orderId: string
+  issuedAt: Timestamp
+  business: BusinessConfig
+  buyerName: string
+  buyerTerms: BuyerTerms
+  lines: InvoiceLine[]
+  subtotal: Cents
+  taxRateBps: number
+  tax: Cents
+  total: Cents
+}
+
+/** `counters/invoices` — last invoice number issued; 0 (doc absent) before the first invoice. Read-and-incremented inside issueInvoice's transaction, so a failed issuance never consumes a number and a concurrent one can't collide. */
+export interface InvoiceCounter {
+  last: number
+}
+
+// ---------------------------------------------------------------------------
+// `returns` / `creditNotes` (docs/SCHEMA.md §13) — a return is one event
+// against a confirmed order, per line, each with its own reason and
+// disposition. `stockItems.status: 'returned'` (§3) is reserved for a
+// write-off return specifically — distinct from 'scrapped' (a teardown
+// write-off that never sold), so a returned-and-written-off item is
+// identifiable in reports as "sold, refunded, never recovered" rather than
+// looking like it was never sold at all.
+// ---------------------------------------------------------------------------
+
+/** docs/SCHEMA.md §13 `returns.lines[].reason`. */
+export type ReturnReason = 'DOA' | 'wrongPart' | 'changedMind'
+
+/** docs/SCHEMA.md §13 `returns.lines[].disposition` — chosen per line, independent of reason. */
+export type ReturnDisposition = 'restock' | 'writeOff'
+
+/** One row of `returns.lines`. unitPrice/unitCost are snapshotted from the matching order line — never re-derived. */
+export interface ReturnLine {
+  skuCode: string
+  /** Set for a serialized line (qty is always 1); omitted for a bulk line. */
+  itemId?: string
+  qty: number
+  reason: ReturnReason
+  disposition: ReturnDisposition
+  unitPrice: Cents
+  unitCost: Cents
+}
+
+/** `returns/{returnId}` — auto-id, since one order can have several separate return events over time. */
+export interface Return {
+  returnId: string
+  orderId: string
+  lines: ReturnLine[]
+  /** Σ unitPrice × qty across all returned lines — the refunded amount before tax, regardless of each line's disposition (a write-off still refunds the buyer; disposition only decides what happens to the physical/bulk unit). */
+  subtotal: Cents
+  /** Copied from the order's frozen taxRateBps — never re-looked-up, for the same reason an order's own tax is frozen (§11). */
+  taxRateBps: number
+  /** The proportional tax reversed — calculateTax() applied to this return's own subtotal at the order's frozen rate, not a fraction of the order's original tax (avoids compounding rounding across partial returns). */
+  tax: Cents
+  total: Cents
+  createdAt: Timestamp
+}
+
+/** One row of `creditNotes.lines` — same shape as an invoice line. */
+export type CreditNoteLine = InvoiceLine
+
+/** `creditNotes/{returnId}` — doc ID is the return event's own id (one return has exactly one credit note). A frozen record, like `invoices` — see issueInvoice.ts / processReturn.ts. */
+export interface CreditNote {
+  creditNoteId: string
+  /** Sequential, gap-free, never reused — its own counter, separate from invoice numbers. */
+  creditNoteNumber: number
+  returnId: string
+  orderId: string
+  /** The invoice this credit note reverses, snapshotted from invoices/{orderId} at the moment of return. */
+  invoiceNumber: number
+  issuedAt: Timestamp
+  business: BusinessConfig
+  buyerName: string
+  buyerTerms: BuyerTerms
+  lines: CreditNoteLine[]
+  subtotal: Cents
+  taxRateBps: number
+  tax: Cents
+  total: Cents
+}
+
+/** `counters/creditNotes` — same shape and guarantee as InvoiceCounter, but its own independent sequence. */
+export interface CreditNoteCounter {
+  last: number
 }

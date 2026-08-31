@@ -2,11 +2,12 @@ import { useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import { httpsCallable } from 'firebase/functions'
 import { functions } from '../firebase'
-import type { Buyer, BuyerTerms, BuyerTier, BuyerType } from '../types'
+import type { Buyer, BuyerTaxStatus, BuyerTerms, BuyerTier, BuyerType } from '../types'
 
 const TYPES: readonly BuyerType[] = ['repairShop', 'broker', 'exporter', 'retail']
 const TIERS: readonly BuyerTier[] = ['standard', 'preferred', 'partner']
 const TERMS: readonly BuyerTerms[] = ['prepay', 'net7', 'net15']
+const TAX_STATUSES: readonly BuyerTaxStatus[] = ['taxable', 'exempt', 'zeroRated']
 
 interface BuyerFormState {
   name: string
@@ -14,6 +15,7 @@ interface BuyerFormState {
   tier: BuyerTier
   terms: BuyerTerms
   email: string
+  taxStatus: BuyerTaxStatus
 }
 
 // buyer: null for create, or an existing buyer doc's data for edit.
@@ -26,6 +28,7 @@ export default function BuyerForm({ buyer, onDone }: { buyer: Buyer | null; onDo
     tier: buyer?.tier ?? TIERS[0],
     terms: buyer?.terms ?? TERMS[0],
     email: buyer?.contact?.email ?? '',
+    taxStatus: buyer?.taxStatus ?? 'taxable',
   })
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -49,6 +52,7 @@ export default function BuyerForm({ buyer, onDone }: { buyer: Buyer | null; onDo
         tier: form.tier,
         terms: form.terms,
         contact: form.email ? { email: form.email } : {},
+        taxStatus: form.taxStatus,
       }
 
       if (isEdit && buyer) {
@@ -111,6 +115,17 @@ export default function BuyerForm({ buyer, onDone }: { buyer: Buyer | null; onDo
         <label className="field">
           Contact email
           <input {...field('email')} type="email" className="input" />
+        </label>
+
+        <label className="field">
+          Tax status
+          <select {...field('taxStatus')} className="select">
+            {TAX_STATUSES.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
         </label>
 
         {error && <p className="text-danger text-sm">{error}</p>}

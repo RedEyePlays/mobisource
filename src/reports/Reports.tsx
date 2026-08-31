@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from '../firebase'
-import type { Buyer, Donor, SalesOrder, Sku, StockItem } from '../types'
+import type { Buyer, Donor, SalesOrder, Sku, StockItem, StockMovement } from '../types'
 import DonorRoiReport from './DonorRoiReport'
 import MarginReport from './MarginReport'
 import YieldReport from './YieldReport'
 import AgingReportView from './AgingReportView'
 import BuyerRevenueReport from './BuyerRevenueReport'
+import AdjustmentsReport from './AdjustmentsReport'
 
-type ReportTab = 'donorRoi' | 'margin' | 'yield' | 'aging' | 'buyerRevenue'
+type ReportTab = 'donorRoi' | 'margin' | 'yield' | 'aging' | 'buyerRevenue' | 'adjustments'
 
 const TABS: { key: ReportTab; label: string }[] = [
   { key: 'donorRoi', label: 'Donor ROI by model' },
@@ -16,6 +17,7 @@ const TABS: { key: ReportTab; label: string }[] = [
   { key: 'yield', label: 'Yield rate' },
   { key: 'aging', label: 'Aging' },
   { key: 'buyerRevenue', label: 'Buyer revenue' },
+  { key: 'adjustments', label: 'Adjustments' },
 ]
 
 export default function Reports() {
@@ -25,6 +27,7 @@ export default function Reports() {
   const [skus, setSkus] = useState<Sku[]>([])
   const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([])
   const [buyers, setBuyers] = useState<Buyer[]>([])
+  const [movements, setMovements] = useState<StockMovement[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -35,12 +38,13 @@ export default function Reports() {
 
     async function load() {
       setLoading(true)
-      const [donorsSnap, itemsSnap, skusSnap, ordersSnap, buyersSnap] = await Promise.all([
+      const [donorsSnap, itemsSnap, skusSnap, ordersSnap, buyersSnap, movementsSnap] = await Promise.all([
         getDocs(collection(db, 'donors')),
         getDocs(collection(db, 'stockItems')),
         getDocs(collection(db, 'skus')),
         getDocs(collection(db, 'salesOrders')),
         getDocs(collection(db, 'buyers')),
+        getDocs(collection(db, 'stockMovements')),
       ])
       if (cancelled) return
 
@@ -49,6 +53,7 @@ export default function Reports() {
       setSkus(skusSnap.docs.map((d) => d.data() as Sku))
       setSalesOrders(ordersSnap.docs.map((d) => d.data() as SalesOrder))
       setBuyers(buyersSnap.docs.map((d) => d.data() as Buyer))
+      setMovements(movementsSnap.docs.map((d) => d.data() as StockMovement))
       setLoading(false)
     }
 
@@ -86,6 +91,7 @@ export default function Reports() {
           {tab === 'yield' && <YieldReport stockItems={stockItems} skus={skus} />}
           {tab === 'aging' && <AgingReportView stockItems={stockItems} now={now} />}
           {tab === 'buyerRevenue' && <BuyerRevenueReport salesOrders={salesOrders} buyers={buyers} />}
+          {tab === 'adjustments' && <AdjustmentsReport movements={movements} />}
         </>
       )}
     </div>

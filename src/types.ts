@@ -51,8 +51,23 @@ export type StockItemStatus = 'inStock' | 'reserved' | 'sold' | 'scrapped' | 're
 export type BuyerType = 'repairShop' | 'broker' | 'exporter' | 'retail'
 export type BuyerTier = 'standard' | 'preferred' | 'partner'
 export type BuyerTerms = 'prepay' | 'net7' | 'net15'
-export type SalesOrderStatus = 'quoted' | 'confirmed' | 'shipped' | 'paid'
+export type BuyerTaxStatus = 'taxable' | 'exempt' | 'zeroRated'
+export type SalesOrderStatus = 'quoted' | 'confirmed' | 'shipped' | 'paid' | 'cancelled'
+export type PaymentMethod = 'cash' | 'card' | 'eTransfer'
 export type TeardownProfileGrade = 'AB' | 'CD'
+export type ReturnReason = 'DOA' | 'wrongPart' | 'changedMind'
+export type ReturnDisposition = 'restock' | 'writeOff'
+export type MovementType =
+  | 'receive'
+  | 'teardownIn'
+  | 'teardownOut'
+  | 'sale'
+  | 'return'
+  | 'scrap'
+  | 'adjust'
+  | 'transfer'
+  | 'release'
+export type MovementBrand = 'mobisource' | 'flipthattech'
 
 // ---------------------------------------------------------------------------
 // Firestore document shapes actually read/written by the frontend.
@@ -165,6 +180,7 @@ export interface Buyer {
   tier: BuyerTier
   terms: BuyerTerms
   contact: BuyerContact
+  taxStatus: BuyerTaxStatus
 }
 
 export interface OrderLine {
@@ -181,9 +197,12 @@ export interface SalesOrder {
   lines: OrderLine[]
   subtotal: Cents
   tax: Cents
+  taxRateBps: number
+  taxStatus: BuyerTaxStatus
   total: Cents
   status: SalesOrderStatus
   createdAt: Timestamp
+  paymentMethod: PaymentMethod | null
 }
 
 export interface TeardownAllocation {
@@ -225,4 +244,34 @@ export interface TeardownProfile {
   model: string
   donorGrade: TeardownProfileGrade
   expectedParts: ExpectedPart[]
+}
+
+export interface TaxRateEntry {
+  effectiveFrom: Timestamp
+  rateBps: number
+}
+
+export interface TaxConfig {
+  rates: TaxRateEntry[]
+}
+
+export interface BusinessConfig {
+  legalName: string
+  address: string
+  email: string
+  phone: string
+  hstNumber: string
+}
+
+export interface StockMovement {
+  movementId: string
+  at: Timestamp
+  type: MovementType
+  skuCode: string | null
+  itemId: string
+  qty: number
+  unitCost: Cents
+  ref: string
+  brand: MovementBrand
+  note: string
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { cents } from '../types'
 import {
+  adjustmentsReport,
   agingBuckets,
   buyerRevenue,
   donorRoiByModel,
@@ -8,6 +9,7 @@ import {
   yieldRateByModel,
 } from './aggregations'
 import type {
+  AdjustmentMovementInput,
   BuyerInput,
   DonorRoiInput,
   SalesOrderForRevenue,
@@ -136,6 +138,7 @@ describe('marginBySku', () => {
         skuCode: 'MS-SCRN-IP14P-A-PULL',
         soldCount: 1,
         inStockCount: 0,
+        returnedCount: 0,
         totalRevenue: 20000,
         totalCost: 16925,
         totalMargin: 3075,
@@ -155,6 +158,7 @@ describe('marginBySku', () => {
         skuCode: 'MS-SCRN-IP14P-A-PULL',
         soldCount: 0,
         inStockCount: 2,
+        returnedCount: 0,
         totalRevenue: 0,
         totalCost: 0,
         totalMargin: 0,
@@ -162,6 +166,36 @@ describe('marginBySku', () => {
         marginPct: null,
       },
     ])
+  })
+
+  it('counts a restocked return (status back to inStock) as unsold, not as a loss', () => {
+    // A restocked return clears soldPrice (processReturn.ts) — it's sellable
+    // again, indistinguishable from any other inStock unit.
+    const rows = marginBySku([item({ status: 'inStock', soldPrice: null })])
+    expect(rows[0]).toMatchObject({ soldCount: 0, inStockCount: 1, returnedCount: 0, totalRevenue: 0, totalCost: 0 })
+  })
+
+  it('folds a written-off return (status returned, soldPrice kept as history) into cost with zero revenue', () => {
+    const rows = marginBySku([
+      item({ status: 'sold', soldPrice: cents(20000), allocatedCost: cents(16925) }),
+      item({ status: 'returned', soldPrice: cents(20000), allocatedCost: cents(16925) }),
+    ])
+    expect(rows[0]).toMatchObject({
+      soldCount: 1,
+      returnedCount: 1,
+      totalRevenue: 20000, // only the genuine sale counts as revenue
+      totalCost: 16925 * 2, // both units' cost was spent; the returned one earned nothing back
+      totalMargin: 20000 - 16925 * 2,
+    })
+  })
+
+  it('excludes a teardown-scrapped item (never sold) from the returned-loss count', () => {
+    // Distinguishes 'scrapped' (never sold, docs/SCHEMA.md §6) from
+    // 'returned' (sold, then written off, §13) — the former is a normal,
+    // separately-handled write-off with allocatedCost 0 (§4's redistribution),
+    // not a margin loss on a sale that happened.
+    const rows = marginBySku([item({ status: 'scrapped', soldPrice: null, allocatedCost: cents(0) })])
+    expect(rows[0]).toMatchObject({ soldCount: 0, returnedCount: 0, totalCost: 0 })
   })
 
   it('surfaces a negative margin when an item sold for less than its allocated cost', () => {
@@ -332,5 +366,49 @@ describe('buyerRevenue', () => {
       buyers,
     )
     expect(rows.map((r) => r.buyerId)).toEqual(['buyer1', 'small'])
+  })
+})
+
+describe('adjustmentsReport', () => {
+  const movement = (overrides: Partial<AdjustmentMovementInput> = {}): AdjustmentMovementInput => ({
+    movementId: 'mv1',
+    at: fakeTimestamp(new Date('2026-09-01')),
+    skuCode: 'MS-SCRN-IP14P-A-PULL',
+    itemId: 'item1',
+    qty: -1,
+    note: 'Not on shelf during count',
+    ...overrides,
+  })
+
+  it('maps a movement to a row, resolving the timestamp and renaming note to reason', () => {
+    const rows = adjustmentsReport([movement()])
+    expect(rows).toEqual([
+      {
+        movementId: 'mv1',
+        at: new Date('2026-09-01'),
+        skuCode: 'MS-SCRN-IP14P-A-PULL',
+        itemId: 'item1',
+        qty: -1,
+        reason: 'Not on shelf during count',
+      },
+    ])
+  })
+
+  it('sorts newest first', () => {
+    const rows = adjustmentsReport([
+      movement({ movementId: 'old', at: fakeTimestamp(new Date('2026-08-01')) }),
+      movement({ movementId: 'new', at: fakeTimestamp(new Date('2026-09-01')) }),
+      movement({ movementId: 'middle', at: fakeTimestamp(new Date('2026-08-15')) }),
+    ])
+    expect(rows.map((r) => r.movementId)).toEqual(['new', 'middle', 'old'])
+  })
+
+  it('falls back to an empty skuCode for a null skuCode', () => {
+    const rows = adjustmentsReport([movement({ skuCode: null })])
+    expect(rows[0].skuCode).toBe('')
+  })
+
+  it('returns an empty report for no adjustment movements', () => {
+    expect(adjustmentsReport([])).toEqual([])
   })
 })

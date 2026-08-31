@@ -43,6 +43,19 @@ describe('validateBuyerFields — create (requireAll)', () => {
     expect(() => validateBuyerFields(baseBuyer({ contact: 'nope' }), { requireAll: true })).toThrow()
     expect(() => validateBuyerFields(baseBuyer({ contact: [] }), { requireAll: true })).toThrow()
   })
+
+  it('does not require taxStatus even with requireAll — it defaults to taxable', () => {
+    expect(() => validateBuyerFields(baseBuyer(), { requireAll: true })).not.toThrow()
+  })
+
+  it('accepts an explicit valid taxStatus', () => {
+    expect(() => validateBuyerFields(baseBuyer({ taxStatus: 'exempt' }), { requireAll: true })).not.toThrow()
+    expect(() => validateBuyerFields(baseBuyer({ taxStatus: 'zeroRated' }), { requireAll: true })).not.toThrow()
+  })
+
+  it('throws on an invalid taxStatus', () => {
+    expect(() => validateBuyerFields(baseBuyer({ taxStatus: 'discounted' }), { requireAll: true })).toThrow()
+  })
 })
 
 describe('validateBuyerFields — partial update', () => {

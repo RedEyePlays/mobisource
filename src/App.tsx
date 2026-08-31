@@ -9,17 +9,32 @@ import BuyerList from './buyers/BuyerList'
 import BuyerForm from './buyers/BuyerForm'
 import OrderList from './orders/OrderList'
 import OrderBuilder from './orders/OrderBuilder'
+import ReturnForm from './orders/ReturnForm'
 import StockList from './inventory/StockList'
+import CountScreen from './inventory/CountScreen'
 import Reports from './reports/Reports'
 import TeardownScreen from './teardown/TeardownScreen'
 import ReceivingScreen from './receiving/ReceivingScreen'
-import type { Buyer, Sku } from './types'
+import PosScreen from './pos/PosScreen'
+import type { Buyer, SalesOrder, Sku } from './types'
 
-type Section = 'inventory' | 'donors' | 'teardown' | 'skus' | 'buyers' | 'orders' | 'receiving' | 'reports'
-type View = 'list' | 'form'
+type Section =
+  | 'pos'
+  | 'inventory'
+  | 'count'
+  | 'donors'
+  | 'teardown'
+  | 'skus'
+  | 'buyers'
+  | 'orders'
+  | 'receiving'
+  | 'reports'
+type View = 'list' | 'form' | 'return'
 
 const NAV: { key: Section; label: string }[] = [
+  { key: 'pos', label: 'Sell' },
   { key: 'inventory', label: 'Inventory' },
+  { key: 'count', label: 'Count' },
   { key: 'donors', label: 'Donors' },
   { key: 'teardown', label: 'Teardown' },
   { key: 'skus', label: 'SKUs' },
@@ -31,9 +46,10 @@ const NAV: { key: Section; label: string }[] = [
 
 function AppShell() {
   const { loading, user, isStaff } = useAuth()
-  const [section, setSection] = useState<Section>('donors')
+  const [section, setSection] = useState<Section>('pos')
   const [view, setView] = useState<View>('list')
   const [editingRecord, setEditingRecord] = useState<Sku | Buyer | null>(null)
+  const [returningOrder, setReturningOrder] = useState<SalesOrder | null>(null)
 
   if (loading) {
     return null
@@ -55,6 +71,7 @@ function AppShell() {
     setSection(next)
     setView('list')
     setEditingRecord(null)
+    setReturningOrder(null)
   }
 
   return (
@@ -71,7 +88,11 @@ function AppShell() {
         ))}
       </nav>
 
+      {section === 'pos' && <PosScreen />}
+
       {section === 'inventory' && <StockList />}
+
+      {section === 'count' && <CountScreen />}
 
       {section === 'donors' && view === 'list' && <DonorList onIntake={() => setView('form')} />}
       {section === 'donors' && view === 'form' && <DonorForm onDone={() => setView('list')} />}
@@ -110,8 +131,19 @@ function AppShell() {
         <BuyerForm buyer={editingRecord as Buyer | null} onDone={() => setView('list')} />
       )}
 
-      {section === 'orders' && view === 'list' && <OrderList onCreate={() => setView('form')} />}
+      {section === 'orders' && view === 'list' && (
+        <OrderList
+          onCreate={() => setView('form')}
+          onReturn={(order) => {
+            setReturningOrder(order)
+            setView('return')
+          }}
+        />
+      )}
       {section === 'orders' && view === 'form' && <OrderBuilder onDone={() => setView('list')} />}
+      {section === 'orders' && view === 'return' && returningOrder && (
+        <ReturnForm order={returningOrder} onDone={() => setView('list')} />
+      )}
 
       {section === 'receiving' && <ReceivingScreen />}
 

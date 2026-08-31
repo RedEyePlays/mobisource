@@ -6,7 +6,7 @@ import { validateBuyerFields } from './lib/validateBuyer.js'
 import type { BuyerFieldsInput } from './lib/validateBuyer.js'
 import type { Buyer } from './lib/types.js'
 
-const ALLOWED_FIELDS = ['name', 'type', 'tier', 'terms', 'contact']
+const ALLOWED_FIELDS = ['name', 'type', 'tier', 'terms', 'contact', 'taxStatus']
 
 function requireStaff(request: CallableRequest<unknown>): void {
   const token = request.auth?.token as Record<string, unknown> | undefined
@@ -38,6 +38,8 @@ export const createBuyer = onCall<BuyerFieldsInput>(async (request) => {
     tier: data.tier as Buyer['tier'],
     terms: data.terms as Buyer['terms'],
     contact: (data.contact as Buyer['contact']) ?? {},
+    // docs/SCHEMA.md §3: taxStatus defaults to 'taxable' when not supplied.
+    taxStatus: (data.taxStatus as Buyer['taxStatus']) ?? 'taxable',
   }
   await ref.set(buyer)
 
