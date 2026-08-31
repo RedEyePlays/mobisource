@@ -13,7 +13,8 @@ describe('mapDonorGradeToProfileGrade', () => {
   })
 
   it('throws on an unknown condition', () => {
-    expect(() => mapDonorGradeToProfileGrade('mint')).toThrow()
+    // Deliberately invalid — proves the runtime guard, not just the type.
+    expect(() => mapDonorGradeToProfileGrade('mint' as unknown as 'A')).toThrow()
   })
 })
 

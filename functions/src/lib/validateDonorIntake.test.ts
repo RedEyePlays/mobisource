@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import type { DonorIntakeInput } from './validateDonorIntake.js'
 import { validateDonorIntake } from './validateDonorIntake.js'
 
-function baseDonor(overrides = {}) {
+function baseDonor(overrides: Partial<DonorIntakeInput> = {}): DonorIntakeInput {
   return {
     purchaseCost: 40000,
     condition: 'A',

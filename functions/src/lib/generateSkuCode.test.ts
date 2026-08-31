@@ -3,9 +3,9 @@ import { generateSkuCode } from './generateSkuCode.js'
 
 describe('generateSkuCode', () => {
   it('builds the code from field values', () => {
-    expect(
-      generateSkuCode({ partType: 'SCRN', model: 'IP14P', grade: 'A', source: 'PULL' }),
-    ).toBe('MS-SCRN-IP14P-A-PULL')
+    expect(generateSkuCode({ partType: 'SCRN', model: 'IP14P', grade: 'A', source: 'PULL' })).toBe(
+      'MS-SCRN-IP14P-A-PULL',
+    )
   })
 
   it('gives a pull and an aftermarket part different codes even with the same part/model/grade-equivalent', () => {

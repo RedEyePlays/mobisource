@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import type { BuyerFieldsInput } from './validateBuyer.js'
 import { validateBuyerFields } from './validateBuyer.js'
 
-function baseBuyer(overrides = {}) {
+function baseBuyer(overrides: Partial<BuyerFieldsInput> = {}): BuyerFieldsInput {
   return {
     name: 'Acme Repair',
     type: 'repairShop',

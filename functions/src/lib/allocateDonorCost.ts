@@ -1,3 +1,15 @@
+import { cents, type Cents } from './types.js'
+
+export interface AllocationInputPart {
+  skuCode: string
+  expectedResaleCents: Cents
+}
+
+export interface AllocationResult {
+  skuCode: string
+  allocatedCostCents: Cents
+}
+
 /**
  * Allocates a donor's cost across harvested parts, proportional to each
  * part's expected resale value. Per docs/SCHEMA.md §4.
@@ -8,12 +20,8 @@
  * (always >= 0, since a floor never overshoots) are assigned to the
  * highest-expected-resale part, so the allocations always sum to exactly
  * donorCostCents.
- *
- * @param {number} donorCostCents - non-negative integer
- * @param {{ skuCode: string, expectedResaleCents: number }[]} parts
- * @returns {{ skuCode: string, allocatedCostCents: number }[]}
  */
-export function allocateDonorCost(donorCostCents, parts) {
+export function allocateDonorCost(donorCostCents: Cents, parts: AllocationInputPart[]): AllocationResult[] {
   if (!Array.isArray(parts) || parts.length === 0) {
     throw new Error('parts must be a non-empty array')
   }
@@ -36,9 +44,9 @@ export function allocateDonorCost(donorCostCents, parts) {
   const donorCost = BigInt(donorCostCents)
   const total = BigInt(totalExpectedResaleCents)
 
-  const allocations = parts.map((part) => ({
+  const allocations: AllocationResult[] = parts.map((part) => ({
     skuCode: part.skuCode,
-    allocatedCostCents: Number((donorCost * BigInt(part.expectedResaleCents)) / total),
+    allocatedCostCents: cents(Number((donorCost * BigInt(part.expectedResaleCents)) / total)),
   }))
 
   const allocatedSoFar = allocations.reduce((sum, allocation) => sum + allocation.allocatedCostCents, 0)
@@ -50,7 +58,7 @@ export function allocateDonorCost(donorCostCents, parts) {
       highestIndex = i
     }
   }
-  allocations[highestIndex].allocatedCostCents += remainderCents
+  allocations[highestIndex].allocatedCostCents = cents(allocations[highestIndex].allocatedCostCents + remainderCents)
 
   return allocations
 }
