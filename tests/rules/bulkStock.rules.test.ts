@@ -4,22 +4,19 @@ import {
   assertSucceeds,
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing'
+import type { RulesTestEnvironment } from '@firebase/rules-unit-testing'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { afterAll, afterEach, beforeAll, describe, it } from 'vitest'
 
-let testEnv
+let testEnv: RulesTestEnvironment
 
-const TEARDOWN_ID = 'teardown1'
-const TEARDOWN_DOC = {
-  teardownId: TEARDOWN_ID,
-  donorId: 'donor1',
-  performedAt: new Date('2026-08-31'),
-  donorCost: 40000,
-  allocations: [{ skuCode: 'MS-SCRN-IP14P-A-PULL', expectedResale: 22000, sharePct: 1, allocatedCost: 40000 }],
-  itemsCreated: ['item1'],
-  scrapped: [],
-  notHarvested: [],
-  costCheck: 40000,
+const SKU_ID = 'MS-BATT-IP14P-N-AFT'
+const BULK_DOC = {
+  skuCode: SKU_ID,
+  qtyOnHand: 25,
+  avgLandedCost: 1500,
+  lastReceivedAt: new Date('2026-08-31'),
+  reorderPoint: 10,
 }
 
 beforeAll(async () => {
@@ -43,28 +40,28 @@ afterAll(async () => {
   await testEnv.cleanup()
 })
 
-describe('teardowns rules', () => {
+describe('bulkStock rules', () => {
   it('denies an unauthenticated read', async () => {
     const db = testEnv.unauthenticatedContext().firestore()
-    await assertFails(getDoc(doc(db, `teardowns/${TEARDOWN_ID}`)))
+    await assertFails(getDoc(doc(db, `bulkStock/${SKU_ID}`)))
   })
 
   it('denies a read from an authenticated non-staff client', async () => {
     const db = testEnv.authenticatedContext('user1').firestore()
-    await assertFails(getDoc(doc(db, `teardowns/${TEARDOWN_ID}`)))
+    await assertFails(getDoc(doc(db, `bulkStock/${SKU_ID}`)))
   })
 
   it('allows a read from an authenticated staff client', async () => {
     await testEnv.withSecurityRulesDisabled(async (ctx) => {
-      await setDoc(doc(ctx.firestore(), `teardowns/${TEARDOWN_ID}`), TEARDOWN_DOC)
+      await setDoc(doc(ctx.firestore(), `bulkStock/${SKU_ID}`), BULK_DOC)
     })
 
     const db = testEnv.authenticatedContext('staff1', { staff: true }).firestore()
-    await assertSucceeds(getDoc(doc(db, `teardowns/${TEARDOWN_ID}`)))
+    await assertSucceeds(getDoc(doc(db, `bulkStock/${SKU_ID}`)))
   })
 
-  it('denies a write even from staff — teardowns are only created by the teardown callable', async () => {
+  it('denies a write even from staff — no receiving callable writes this yet', async () => {
     const db = testEnv.authenticatedContext('staff1', { staff: true }).firestore()
-    await assertFails(setDoc(doc(db, `teardowns/${TEARDOWN_ID}`), TEARDOWN_DOC))
+    await assertFails(setDoc(doc(db, `bulkStock/${SKU_ID}`), BULK_DOC))
   })
 })

@@ -4,19 +4,25 @@ import {
   assertSucceeds,
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing'
+import type { RulesTestEnvironment } from '@firebase/rules-unit-testing'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { afterAll, afterEach, beforeAll, describe, it } from 'vitest'
 
-let testEnv
+let testEnv: RulesTestEnvironment
 
-const BUYER_ID = 'buyer1'
-const BUYER_DOC = {
-  buyerId: BUYER_ID,
-  name: 'Acme Repair',
-  type: 'repairShop',
-  tier: 'preferred',
-  terms: 'net15',
-  contact: { email: 'buying@acme.example' },
+const DONOR_ID = 'donor1'
+const DONOR_DOC = {
+  model: 'IP14P',
+  imei: '123456789012345',
+  purchaseCost: 40000,
+  purchaseCurrency: 'CAD',
+  fxRateUsed: null,
+  purchaseDate: new Date('2026-08-01'),
+  source: 'local',
+  supplierRef: 'sup-1',
+  condition: 'A',
+  status: 'intact',
+  notes: '',
 }
 
 beforeAll(async () => {
@@ -40,28 +46,31 @@ afterAll(async () => {
   await testEnv.cleanup()
 })
 
-describe('buyers rules', () => {
+describe('donors rules', () => {
   it('denies an unauthenticated read', async () => {
     const db = testEnv.unauthenticatedContext().firestore()
-    await assertFails(getDoc(doc(db, `buyers/${BUYER_ID}`)))
+    await assertFails(getDoc(doc(db, `donors/${DONOR_ID}`)))
   })
 
   it('denies a read from an authenticated non-staff client', async () => {
     const db = testEnv.authenticatedContext('user1').firestore()
-    await assertFails(getDoc(doc(db, `buyers/${BUYER_ID}`)))
+    await assertFails(getDoc(doc(db, `donors/${DONOR_ID}`)))
   })
 
-  it('allows a read from an authenticated staff client', async () => {
+  it('allows a read from an authenticated staff client, including purchaseCost', async () => {
     await testEnv.withSecurityRulesDisabled(async (ctx) => {
-      await setDoc(doc(ctx.firestore(), `buyers/${BUYER_ID}`), BUYER_DOC)
+      await setDoc(doc(ctx.firestore(), `donors/${DONOR_ID}`), DONOR_DOC)
     })
 
     const db = testEnv.authenticatedContext('staff1', { staff: true }).firestore()
-    await assertSucceeds(getDoc(doc(db, `buyers/${BUYER_ID}`)))
+    const snap = await assertSucceeds(getDoc(doc(db, `donors/${DONOR_ID}`)))
+    if ((snap.data() as { purchaseCost: number }).purchaseCost !== DONOR_DOC.purchaseCost) {
+      throw new Error('expected staff read to include purchaseCost')
+    }
   })
 
-  it('denies a write even from staff — buyers are only created/updated through callables', async () => {
+  it('denies a write even from staff — donors only change through the intake callable', async () => {
     const db = testEnv.authenticatedContext('staff1', { staff: true }).firestore()
-    await assertFails(setDoc(doc(db, `buyers/${BUYER_ID}`), BUYER_DOC))
+    await assertFails(setDoc(doc(db, `donors/${DONOR_ID}`), DONOR_DOC))
   })
 })
