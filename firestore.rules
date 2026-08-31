@@ -1,0 +1,11 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Deny-all default. Per-collection rules land with the phase 1 plan —
+    // every collection must get explicit rules before it's readable/writable.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
