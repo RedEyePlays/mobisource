@@ -27,9 +27,18 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Deny-all default. Every other collection (bulkStock, stockItems,
-    // teardowns, buyers, salesOrders, ...) gets explicit rules when its
-    // phase lands.
+    match /stockItems/{itemId} {
+      allow read: if isStaff();
+      allow write: if false;
+    }
+
+    match /teardowns/{teardownId} {
+      allow read: if isStaff();
+      allow write: if false;
+    }
+
+    // Deny-all default. Every other collection (bulkStock, buyers,
+    // salesOrders, ...) gets explicit rules when its phase lands.
     match /{document=**} {
       allow read, write: if false;
     }
