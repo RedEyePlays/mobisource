@@ -57,6 +57,17 @@ export type PaymentMethod = 'cash' | 'card' | 'eTransfer'
 export type TeardownProfileGrade = 'AB' | 'CD'
 export type ReturnReason = 'DOA' | 'wrongPart' | 'changedMind'
 export type ReturnDisposition = 'restock' | 'writeOff'
+export type MovementType =
+  | 'receive'
+  | 'teardownIn'
+  | 'teardownOut'
+  | 'sale'
+  | 'return'
+  | 'scrap'
+  | 'adjust'
+  | 'transfer'
+  | 'release'
+export type MovementBrand = 'mobisource' | 'flipthattech'
 
 // ---------------------------------------------------------------------------
 // Firestore document shapes actually read/written by the frontend.
@@ -250,4 +261,17 @@ export interface BusinessConfig {
   email: string
   phone: string
   hstNumber: string
+}
+
+export interface StockMovement {
+  movementId: string
+  at: Timestamp
+  type: MovementType
+  skuCode: string | null
+  itemId: string
+  qty: number
+  unitCost: Cents
+  ref: string
+  brand: MovementBrand
+  note: string
 }

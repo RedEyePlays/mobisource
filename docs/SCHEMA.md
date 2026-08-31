@@ -914,3 +914,56 @@ records which happened, for the curious).
 createdAt` in whole days — informational only; it's not what the sweep
 uses to decide (the sweep re-derives age itself, server-side, at run
 time).
+
+---
+
+## 15. Stock adjustments and cycle counts
+
+`adjustStock({ itemId | skuCode, newStatus | newQty, reason })` — one
+callable, two modes (picking a SKU or an item, per the task's own
+wording), matching the two shapes stock corrections actually take:
+
+**Item mode (`itemId`, `newStatus`)** — fixes one serialized unit's
+status directly: found on the shelf when the system says `sold`, missing
+when it says `inStock`, etc. `reason` is required, free text.
+
+**SKU mode (`skuCode`, `newQty`)** — the cycle-count screen's mode: what's
+physically there, for a whole SKU.
+
+```
+bulk SKU          delta = newQty - bulkStock.qtyOnHand; qtyOnHand is set
+                  to newQty directly. avgLandedCost is never touched by an
+                  adjustment — a miscount isn't a new cost basis.
+
+serialized SKU    "current" = count of that SKU's stockItems with
+                  status: inStock. A *decrease* (fewer found than
+                  tracked) writes off however many are missing — picked
+                  arbitrarily from the inStock set, since a headcount
+                  alone can't say *which* unit is gone; if the specific
+                  unit is known, adjust it directly by itemId instead. An
+                  *increase* is rejected: a serialized unit needs a real
+                  cost basis from a donor teardown or intake (docs/
+                  SCHEMA.md §4/§5), and a headcount has none to give it —
+                  "implement the default and flag it": the default here is
+                  refusing to invent stock, not silently absorbing it.
+```
+
+Either mode, when the correction is a genuine no-op (the requested status
+or quantity already matches), returns without writing anything — only a
+real correction gets a movement.
+
+**Ledger:** every correction writes one `adjust` movement per affected
+unit (never edits an existing row), carrying the delta actually applied —
+`+1`/`-1` for an item, the full `newQty - current` delta for a bulk SKU,
+one `-1` row per written-off unit for a serialized SKU. `reason` lands in
+the movement's `note` field.
+
+**The count screen** (`CountScreen`) is the UI for SKU mode: pick a SKU,
+see the system's current count, enter what's physically there, see the
+variance, and commit — which is exactly `adjustStock({ skuCode, newQty,
+reason })`.
+
+**The adjustments report** (`Reports` → Adjustments tab) lists every
+`adjust` movement — when, which SKU/item, the qty delta, and why —
+newest first, straight off the ledger; nothing else needed to compute
+"what was corrected."

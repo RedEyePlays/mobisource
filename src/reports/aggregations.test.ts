@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { cents } from '../types'
 import {
+  adjustmentsReport,
   agingBuckets,
   buyerRevenue,
   donorRoiByModel,
@@ -8,6 +9,7 @@ import {
   yieldRateByModel,
 } from './aggregations'
 import type {
+  AdjustmentMovementInput,
   BuyerInput,
   DonorRoiInput,
   SalesOrderForRevenue,
@@ -364,5 +366,49 @@ describe('buyerRevenue', () => {
       buyers,
     )
     expect(rows.map((r) => r.buyerId)).toEqual(['buyer1', 'small'])
+  })
+})
+
+describe('adjustmentsReport', () => {
+  const movement = (overrides: Partial<AdjustmentMovementInput> = {}): AdjustmentMovementInput => ({
+    movementId: 'mv1',
+    at: fakeTimestamp(new Date('2026-09-01')),
+    skuCode: 'MS-SCRN-IP14P-A-PULL',
+    itemId: 'item1',
+    qty: -1,
+    note: 'Not on shelf during count',
+    ...overrides,
+  })
+
+  it('maps a movement to a row, resolving the timestamp and renaming note to reason', () => {
+    const rows = adjustmentsReport([movement()])
+    expect(rows).toEqual([
+      {
+        movementId: 'mv1',
+        at: new Date('2026-09-01'),
+        skuCode: 'MS-SCRN-IP14P-A-PULL',
+        itemId: 'item1',
+        qty: -1,
+        reason: 'Not on shelf during count',
+      },
+    ])
+  })
+
+  it('sorts newest first', () => {
+    const rows = adjustmentsReport([
+      movement({ movementId: 'old', at: fakeTimestamp(new Date('2026-08-01')) }),
+      movement({ movementId: 'new', at: fakeTimestamp(new Date('2026-09-01')) }),
+      movement({ movementId: 'middle', at: fakeTimestamp(new Date('2026-08-15')) }),
+    ])
+    expect(rows.map((r) => r.movementId)).toEqual(['new', 'middle', 'old'])
+  })
+
+  it('falls back to an empty skuCode for a null skuCode', () => {
+    const rows = adjustmentsReport([movement({ skuCode: null })])
+    expect(rows[0].skuCode).toBe('')
+  })
+
+  it('returns an empty report for no adjustment movements', () => {
+    expect(adjustmentsReport([])).toEqual([])
   })
 })

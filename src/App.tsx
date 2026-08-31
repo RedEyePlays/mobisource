@@ -11,18 +11,30 @@ import OrderList from './orders/OrderList'
 import OrderBuilder from './orders/OrderBuilder'
 import ReturnForm from './orders/ReturnForm'
 import StockList from './inventory/StockList'
+import CountScreen from './inventory/CountScreen'
 import Reports from './reports/Reports'
 import TeardownScreen from './teardown/TeardownScreen'
 import ReceivingScreen from './receiving/ReceivingScreen'
 import PosScreen from './pos/PosScreen'
 import type { Buyer, SalesOrder, Sku } from './types'
 
-type Section = 'pos' | 'inventory' | 'donors' | 'teardown' | 'skus' | 'buyers' | 'orders' | 'receiving' | 'reports'
+type Section =
+  | 'pos'
+  | 'inventory'
+  | 'count'
+  | 'donors'
+  | 'teardown'
+  | 'skus'
+  | 'buyers'
+  | 'orders'
+  | 'receiving'
+  | 'reports'
 type View = 'list' | 'form' | 'return'
 
 const NAV: { key: Section; label: string }[] = [
   { key: 'pos', label: 'Sell' },
   { key: 'inventory', label: 'Inventory' },
+  { key: 'count', label: 'Count' },
   { key: 'donors', label: 'Donors' },
   { key: 'teardown', label: 'Teardown' },
   { key: 'skus', label: 'SKUs' },
@@ -79,6 +91,8 @@ function AppShell() {
       {section === 'pos' && <PosScreen />}
 
       {section === 'inventory' && <StockList />}
+
+      {section === 'count' && <CountScreen />}
 
       {section === 'donors' && view === 'list' && <DonorList onIntake={() => setView('form')} />}
       {section === 'donors' && view === 'form' && <DonorForm onDone={() => setView('list')} />}

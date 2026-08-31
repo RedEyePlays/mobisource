@@ -368,3 +368,41 @@ export function buyerRevenue(salesOrders: SalesOrderForRevenue[], buyers: BuyerI
 
   return rows.sort((a, b) => b.totalRevenue - a.totalRevenue)
 }
+
+// ---------------------------------------------------------------------------
+// Adjustments report — docs/SCHEMA.md §15. Every stock correction (a
+// cycle-count variance or a single-item status fix, adjustStock.ts) writes
+// an 'adjust' stockMovements row; this just orders them for display —
+// newest first, so "what was corrected, when, and why" reads chronologically.
+// ---------------------------------------------------------------------------
+
+export interface AdjustmentMovementInput {
+  movementId: string
+  at: TimestampLike
+  skuCode: string | null
+  itemId: string
+  qty: number
+  note: string
+}
+
+export interface AdjustmentRow {
+  movementId: string
+  at: Date
+  skuCode: string
+  itemId: string
+  qty: number
+  reason: string
+}
+
+export function adjustmentsReport(movements: AdjustmentMovementInput[]): AdjustmentRow[] {
+  return movements
+    .map((m) => ({
+      movementId: m.movementId,
+      at: m.at.toDate(),
+      skuCode: m.skuCode ?? '',
+      itemId: m.itemId,
+      qty: m.qty,
+      reason: m.note,
+    }))
+    .sort((a, b) => b.at.getTime() - a.at.getTime())
+}
