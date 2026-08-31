@@ -9,6 +9,7 @@ import BuyerList from './buyers/BuyerList.jsx'
 import BuyerForm from './buyers/BuyerForm.jsx'
 import OrderList from './orders/OrderList.jsx'
 import OrderBuilder from './orders/OrderBuilder.jsx'
+import StockList from './inventory/StockList.jsx'
 
 function AppShell() {
   const { loading, user, isStaff } = useAuth()
@@ -42,6 +43,12 @@ function AppShell() {
     <div>
       <nav className="flex gap-2 p-4 border-b">
         <button
+          onClick={() => goToSection('inventory')}
+          className={section === 'inventory' ? 'font-semibold' : 'text-gray-500'}
+        >
+          Inventory
+        </button>
+        <button
           onClick={() => goToSection('donors')}
           className={section === 'donors' ? 'font-semibold' : 'text-gray-500'}
         >
@@ -66,6 +73,8 @@ function AppShell() {
           Orders
         </button>
       </nav>
+
+      {section === 'inventory' && <StockList />}
 
       {section === 'donors' && view === 'list' && <DonorList onIntake={() => setView('form')} />}
       {section === 'donors' && view === 'form' && <DonorForm onDone={() => setView('list')} />}
