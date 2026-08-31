@@ -15,9 +15,22 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          node-version: 22
 
+      # setup-node's built-in cache errors out until package-lock.json exists,
+      # so cache separately and only once there's a lockfile to key on.
+      - name: Cache npm dependencies
+        if: hashFiles('**/package-lock.json') != ''
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      # Requires package.json, package-lock.json, and the test:rules /
+      # test:unit scripts to exist — this job only passes once the app
+      # is scaffolded.
       - name: Install dependencies
         run: npm ci
 
