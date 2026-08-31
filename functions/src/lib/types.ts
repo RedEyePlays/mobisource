@@ -349,3 +349,45 @@ export interface BusinessConfig {
   /** CRA HST registration number. */
   hstNumber: string
 }
+
+// ---------------------------------------------------------------------------
+// `invoices` (docs/SCHEMA.md §12) — a record, not a view. Everything on the
+// doc is a snapshot taken when the invoice was issued: business details,
+// buyer name/terms, and each line's human-readable description are copied
+// in at issue time so a later edit to config/business, the buyer, or the
+// SKU catalog can never retroactively change an already-issued invoice.
+// subtotal/taxRateBps/tax/total are copied straight from the confirmed
+// order, which is itself already frozen (§11) — never recomputed here.
+// ---------------------------------------------------------------------------
+
+/** One row of `invoices.lines`. */
+export interface InvoiceLine {
+  skuCode: string
+  /** Composed at issue time from the SKU catalog, e.g. "SCRN · IP14P · Grade A" — snapshotted so a later SKU edit can't change an issued invoice. */
+  description: string
+  qty: number
+  unitPrice: Cents
+  lineTotal: Cents
+}
+
+/** `invoices/{orderId}` — doc ID is the source order's orderId; one confirmed order has exactly one invoice, and this makes re-issuing idempotent (see issueInvoice.ts). */
+export interface Invoice {
+  invoiceId: string
+  /** Sequential, gap-free, never reused — assigned from counters/invoices in the same transaction that creates this doc. */
+  invoiceNumber: number
+  orderId: string
+  issuedAt: Timestamp
+  business: BusinessConfig
+  buyerName: string
+  buyerTerms: BuyerTerms
+  lines: InvoiceLine[]
+  subtotal: Cents
+  taxRateBps: number
+  tax: Cents
+  total: Cents
+}
+
+/** `counters/invoices` — last invoice number issued; 0 (doc absent) before the first invoice. Read-and-incremented inside issueInvoice's transaction, so a failed issuance never consumes a number and a concurrent one can't collide. */
+export interface InvoiceCounter {
+  last: number
+}

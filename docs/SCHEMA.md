@@ -654,3 +654,66 @@ difference yet beyond charging $0 either way.
 **HST registration number:** `config/business.hstNumber` — grouped with
 the rest of the business identity fields (§3), not with `config/tax`,
 since it's invoice/business-identity information, not a rate.
+
+---
+
+## 12. Invoices
+
+An invoice is **a record, not a view** — once issued it must never change,
+even if the underlying order, buyer, SKU catalog, or business config
+change afterward. Two collections:
+
+### `invoices`
+
+Doc ID = the source order's `orderId` — a confirmed order has exactly one
+invoice, and this is what makes issuing idempotent (re-issuing just returns
+the same doc) without a query.
+
+```
+invoiceId        string    == orderId (doc id)
+invoiceNumber    number    sequential, gap-free, never reused — see counters/invoices below
+orderId          string
+issuedAt         timestamp
+business         object    config/business, copied in at issue time
+buyerName        string    copied from the buyer at issue time
+buyerTerms       string    copied from the buyer at issue time
+lines            array     [{ skuCode, description, qty, unitPrice, lineTotal }]
+subtotal, taxRateBps, tax, total   copied straight from the confirmed order
+```
+
+`description` is composed once, at issue time, from the SKU catalog
+(`"{partType} · {model} · Grade {grade}"`) and then frozen — a later edit
+to that SKU never touches an invoice that already shipped with the old
+description. Same reasoning for `business`, `buyerName`, and `buyerTerms`:
+each is a snapshot, not a reference.
+
+### `counters/invoices`
+
+```
+last             number    the last invoice number issued; 0 (doc absent)
+                            before the first invoice ever
+```
+
+`issueInvoice` reads this and the new invoice doc inside one transaction:
+if `invoices/{orderId}` already exists, it returns that doc unchanged and
+never touches the counter; otherwise it computes `last + 1`, writes both
+the invoice and the counter, and returns the new invoice. Firestore's
+transaction semantics are what make this sequential and gap-free — a
+failed issuance (e.g. the order doesn't exist) never commits, so it never
+consumes a number, and two concurrent issuances for different orders can't
+land on the same number.
+
+### Generating the PDF
+
+`getInvoicePdf({ orderId })` calls `issueInvoice` (create-or-return) and
+then renders the resulting invoice doc to PDF bytes, returned as base64 —
+matching this codebase's onCall-only convention (no separate HTTP
+endpoint). The PDF is generated fresh from the frozen invoice doc on
+**every** call, never stored as a binary — since the invoice doc itself
+never changes, a re-download always renders the same content: business
+details, buyer details, invoice number, date, payment terms, every line
+item (SKU, description, qty, unit price, line total), subtotal, the HST
+line (rate + amount), and total.
+
+Downloadable from the sales-order list (`OrderList`) for any order past
+`quoted` status.

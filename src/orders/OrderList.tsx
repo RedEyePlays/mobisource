@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { collection, getDocs, orderBy, query } from 'firebase/firestore'
 import { db } from '../firebase'
+import { downloadInvoicePdf } from './downloadInvoice'
 import type { Cents, SalesOrder } from '../types'
 
 function formatCents(cents: Cents) {
@@ -15,6 +16,20 @@ export default function OrderList({ onCreate }: { onCreate: () => void }) {
   const [orders, setOrders] = useState<SalesOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [downloadError, setDownloadError] = useState('')
+
+  async function handleDownloadInvoice(orderId: string) {
+    setDownloadError('')
+    setDownloadingId(orderId)
+    try {
+      await downloadInvoicePdf(orderId)
+    } catch (err) {
+      setDownloadError((err as Error).message)
+    } finally {
+      setDownloadingId(null)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -48,6 +63,8 @@ export default function OrderList({ onCreate }: { onCreate: () => void }) {
         </div>
       </div>
 
+      {downloadError && <p className="banner-danger mb-3">{downloadError}</p>}
+
       {loading ? (
         <p className="text-muted">Loading…</p>
       ) : orders.length === 0 ? (
@@ -64,6 +81,7 @@ export default function OrderList({ onCreate }: { onCreate: () => void }) {
                 <th>Tax</th>
                 <th>Total</th>
                 <th>Margin</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -81,6 +99,18 @@ export default function OrderList({ onCreate }: { onCreate: () => void }) {
                   </td>
                   <td>
                     <span className="num-md">{formatCents(margin(order))}</span>
+                  </td>
+                  <td>
+                    {order.status !== 'quoted' && (
+                      <button
+                        type="button"
+                        disabled={downloadingId === order.orderId}
+                        onClick={() => void handleDownloadInvoice(order.orderId)}
+                        className="btn-secondary btn-sm"
+                      >
+                        {downloadingId === order.orderId ? '…' : 'Download invoice'}
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
