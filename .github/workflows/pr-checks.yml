@@ -17,6 +17,13 @@ jobs:
         with:
           node-version: 22
 
+      # firebase-tools requires JDK 21+ to run the Firestore emulator; the
+      # runner's default `java` on PATH isn't guaranteed to be new enough.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
       # setup-node's built-in cache errors out until package-lock.json exists,
       # so cache separately and only once there's a lockfile to key on.
       - name: Cache npm dependencies
@@ -28,9 +35,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-npm-
 
-      # Requires package.json, package-lock.json, and the test:rules /
-      # test:unit scripts to exist — this job only passes once the app
-      # is scaffolded.
       - name: Install dependencies
         run: npm ci
 
