@@ -1,5 +1,5 @@
 const TYPES = ['repairShop', 'broker', 'exporter', 'retail']
-const TIERS = ['tier1', 'tier2', 'tier3']
+const TIERS = ['standard', 'preferred', 'partner']
 const TERMS = ['prepay', 'net7', 'net15']
 
 /**

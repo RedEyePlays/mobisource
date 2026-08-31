@@ -3,7 +3,7 @@ import { httpsCallable } from 'firebase/functions'
 import { functions } from '../firebase.js'
 
 const TYPES = ['repairShop', 'broker', 'exporter', 'retail']
-const TIERS = ['tier1', 'tier2', 'tier3']
+const TIERS = ['standard', 'preferred', 'partner']
 const TERMS = ['prepay', 'net7', 'net15']
 
 // buyer: null for create, or an existing buyer doc's data for edit.

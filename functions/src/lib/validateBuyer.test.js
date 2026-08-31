@@ -5,7 +5,7 @@ function baseBuyer(overrides = {}) {
   return {
     name: 'Acme Repair',
     type: 'repairShop',
-    tier: 'tier2',
+    tier: 'preferred',
     terms: 'net15',
     ...overrides,
   }
@@ -46,7 +46,7 @@ describe('validateBuyerFields — create (requireAll)', () => {
 
 describe('validateBuyerFields — partial update', () => {
   it('accepts updating just the tier', () => {
-    expect(() => validateBuyerFields({ tier: 'tier3' })).not.toThrow()
+    expect(() => validateBuyerFields({ tier: 'partner' })).not.toThrow()
   })
 
   it('throws on an invalid value for a field that is present', () => {

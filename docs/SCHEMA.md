@@ -188,10 +188,15 @@ note             string
 buyerId          string
 name             string
 type             string    repairShop | broker | exporter | retail
-tier             string    tier1 | tier2 | tier3
+tier             string    standard | preferred | partner
 terms            string    prepay | net7 | net15
 contact          object
 ```
+
+`tier` is ordered worst-to-best for the buyer: `standard` is the default,
+`partner` is the best (e.g. a high-volume repeat account). Named this way —
+not `tier1/2/3` — specifically so the direction is never ambiguous; see the
+pricing rule below.
 
 ### `salesOrders`
 
@@ -211,23 +216,39 @@ never looked up again afterward.
 
 #### Line pricing: buyer tier vs. quantity break
 
-`skus.listPriceTier1/2/3` are **quantity breaks** (1-4 / 5-19 / 20+ units).
-`buyers.tier` is a **buyer classification** (`tier1|tier2|tier3`). These are
-two different axes, not the same field under two names — a line's
-`unitPrice` is resolved server-side as:
+`skus.listPriceTier1/2/3` are **quantity breaks** (1-4 / 5-19 / 20+ units) —
+a different axis from `buyers.tier`, not the same field under two names.
+`buyers.tier` maps to a *guaranteed floor bracket*, regardless of how many
+units are on this particular line:
+
+```
+standard  -> listPriceTier1
+preferred -> listPriceTier2
+partner   -> listPriceTier3
+```
+
+A line's `unitPrice` is resolved server-side as:
 
 ```
 retail buyer  -> listPriceRetail, always
-otherwise     -> min(SKU price at buyer.tier, SKU price at the line's
-                 quantity break)
+otherwise     -> min(SKU price at buyer.tier's mapped field,
+                 SKU price at the line's own quantity break)
 ```
 
-i.e. the buyer's tier is a price *floor*, not a fixed lookup — a tier3
-buyer ordering 2 units still doesn't pay the 20+ price, and a tier1 buyer
-ordering 40 gets the 20+ price rather than being held to tier1. Whichever
-of the two lookups is cheaper for the buyer wins. This resolution always
-happens server-side in the order-building callable — a client never
-supplies or sees the other tiers' prices for a line it didn't order.
+The buyer's tier sets the *worst* price they ever pay; the line's actual
+quantity can only improve on it (push it to a cheaper bracket), never make
+it worse. Worked examples, given `listPriceTier1=$100` (1-4u),
+`listPriceTier2=$90` (5-19u), `listPriceTier3=$80` (20+u):
+
+| Buyer tier | Qty | Quantity bracket price | Tier floor price | `unitPrice` |
+|---|---|---|---|---|
+| standard | 2  | $100 (1-4u)  | $100 | $100 — both agree |
+| standard | 40 | $80 (20+u)   | $100 | $80 — quantity improves on the floor |
+| partner  | 2  | $100 (1-4u)  | $80  | $80 — tier holds; quantity doesn't downgrade it |
+
+This resolution always happens server-side in the order-building callable —
+a client never supplies or sees the other tiers' prices for a line it
+didn't order.
 
 ## 3.5 Teardown profiles
 

@@ -7,6 +7,8 @@ import SkuList from './skus/SkuList.jsx'
 import SkuForm from './skus/SkuForm.jsx'
 import BuyerList from './buyers/BuyerList.jsx'
 import BuyerForm from './buyers/BuyerForm.jsx'
+import OrderList from './orders/OrderList.jsx'
+import OrderBuilder from './orders/OrderBuilder.jsx'
 
 function AppShell() {
   const { loading, user, isStaff } = useAuth()
@@ -57,6 +59,12 @@ function AppShell() {
         >
           Buyers
         </button>
+        <button
+          onClick={() => goToSection('orders')}
+          className={section === 'orders' ? 'font-semibold' : 'text-gray-500'}
+        >
+          Orders
+        </button>
       </nav>
 
       {section === 'donors' && view === 'list' && <DonorList onIntake={() => setView('form')} />}
@@ -91,6 +99,9 @@ function AppShell() {
       {section === 'buyers' && view === 'form' && (
         <BuyerForm buyer={editingRecord} onDone={() => setView('list')} />
       )}
+
+      {section === 'orders' && view === 'list' && <OrderList onCreate={() => setView('form')} />}
+      {section === 'orders' && view === 'form' && <OrderBuilder onDone={() => setView('list')} />}
     </div>
   )
 }
