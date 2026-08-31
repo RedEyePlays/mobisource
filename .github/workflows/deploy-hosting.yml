@@ -44,4 +44,4 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
         run: |
           project_id=$(jq -r .project_id "$GOOGLE_APPLICATION_CREDENTIALS")
-          npx firebase-tools deploy --only hosting,firestore:rules,functions --project "$project_id" --non-interactive
+          npx firebase-tools deploy --only hosting,firestore:rules,functions --project "$project_id" --non-interactive --force
