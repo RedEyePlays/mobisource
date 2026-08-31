@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
 import type { Firestore } from 'firebase-admin/firestore'
-import { afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createOrder } from '../src/lib/createOrder.js'
 import { confirmOrder } from '../src/lib/confirmOrder.js'
 
@@ -22,6 +22,18 @@ afterEach(async () => {
     `http://${host}:${port}/emulator/v1/projects/demo-mobisource/databases/(default)/documents`,
     { method: 'DELETE' },
   )
+})
+
+// createOrder and confirmOrder both require config/tax to exist (docs/SCHEMA.md
+// §3) — seeded fresh before every test in this file, since the emulator is
+// wiped after each one. Individual tests override this by re-seeding with
+// different rates once a quote already exists.
+async function seedTaxConfig(rates: { effectiveFrom: Date; rateBps: number }[] = [{ effectiveFrom: new Date('2010-07-01'), rateBps: 1300 }]) {
+  await db.collection('config').doc('tax').set({ rates })
+}
+
+beforeEach(async () => {
+  await seedTaxConfig()
 })
 
 const SCRN = 'MS-SCRN-IP14P-A-PULL'
@@ -105,8 +117,9 @@ describe('createOrder', () => {
       { skuCode: SCRN, itemId: 'item1', qty: 1, unitPrice: 24000, unitCost: 16925 },
     ])
     expect(result.subtotal).toBe(24000)
-    expect(result.tax).toBe(0)
-    expect(result.total).toBe(24000)
+    expect(result.taxRateBps).toBe(1300)
+    expect(result.tax).toBe(3120) // 24000 * 1300 / 10000, buyer defaults to taxable
+    expect(result.total).toBe(27120)
 
     const order = (await db.collection('salesOrders').doc(result.orderId).get()).data()!
     expect(order.status).toBe('quoted')
@@ -350,5 +363,103 @@ describe('confirmOrder', () => {
     expect((await db.collection('stockItems').doc('item1').get()).data()!.status).toBe('sold')
     expect((await db.collection('bulkStock').doc(BATT).get()).data()!.qtyOnHand).toBe(7)
     expect(await countDocs('stockMovements')).toBe(2)
+  })
+})
+
+describe('tax', () => {
+  it('charges 13% HST on a taxable buyer, both at quote and at confirm', async () => {
+    await seedSku()
+    await seedItem('item1')
+    await seedBuyer('buyer1', { taxStatus: 'taxable' })
+
+    const quote = await createOrder(db, { buyerId: 'buyer1', itemIds: ['item1'] })
+    expect(quote.subtotal).toBe(24000)
+    expect(quote.taxRateBps).toBe(1300)
+    expect(quote.tax).toBe(3120)
+
+    const confirmed = await confirmOrder(db, { orderId: quote.orderId })
+    expect(confirmed.taxRateBps).toBe(1300)
+    expect(confirmed.tax).toBe(3120)
+    expect(confirmed.total).toBe(27120)
+
+    const order = (await db.collection('salesOrders').doc(quote.orderId).get()).data()!
+    expect(order.tax).toBe(3120)
+    expect(order.taxRateBps).toBe(1300)
+    expect(order.taxStatus).toBe('taxable')
+    expect(order.total).toBe(27120)
+  })
+
+  it('charges $0 tax for an exempt buyer', async () => {
+    await seedSku()
+    await seedItem('item1')
+    await seedBuyer('buyer1', { taxStatus: 'exempt' })
+
+    const quote = await createOrder(db, { buyerId: 'buyer1', itemIds: ['item1'] })
+    expect(quote.tax).toBe(0)
+    expect(quote.total).toBe(quote.subtotal)
+
+    const confirmed = await confirmOrder(db, { orderId: quote.orderId })
+    expect(confirmed.tax).toBe(0)
+    expect(confirmed.total).toBe(confirmed.subtotal)
+  })
+
+  it('charges $0 tax for a zeroRated buyer', async () => {
+    await seedSku()
+    await seedItem('item1')
+    await seedBuyer('buyer1', { taxStatus: 'zeroRated' })
+
+    const quote = await createOrder(db, { buyerId: 'buyer1', itemIds: ['item1'] })
+    expect(quote.tax).toBe(0)
+
+    const confirmed = await confirmOrder(db, { orderId: quote.orderId })
+    expect(confirmed.tax).toBe(0)
+  })
+
+  it('defaults a buyer with no taxStatus field at all to taxable', async () => {
+    await seedSku()
+    await seedItem('item1')
+    // seedBuyer's base fixture has no taxStatus key — this is the shape of a
+    // buyer doc written before this migration.
+    await seedBuyer('buyer1')
+
+    const quote = await createOrder(db, { buyerId: 'buyer1', itemIds: ['item1'] })
+    expect(quote.tax).toBe(3120)
+
+    const confirmed = await confirmOrder(db, { orderId: quote.orderId })
+    expect(confirmed.tax).toBe(3120)
+  })
+
+  it("freezes tax on confirm — a later change to the buyer's taxStatus or to config/tax never touches an already-confirmed order", async () => {
+    await seedSku()
+    await seedItem('item1')
+    await seedBuyer('buyer1', { taxStatus: 'taxable' })
+    const quote = await createOrder(db, { buyerId: 'buyer1', itemIds: ['item1'] })
+    await confirmOrder(db, { orderId: quote.orderId })
+
+    // Both of these would change what a *new* order gets charged...
+    await db.collection('buyers').doc('buyer1').update({ taxStatus: 'exempt' })
+    await seedTaxConfig([
+      { effectiveFrom: new Date('2010-07-01'), rateBps: 1300 },
+      { effectiveFrom: new Date('2020-01-01'), rateBps: 1500 },
+    ])
+
+    // ...but never this already-confirmed order.
+    const order = (await db.collection('salesOrders').doc(quote.orderId).get()).data()!
+    expect(order.tax).toBe(3120)
+    expect(order.taxRateBps).toBe(1300)
+    expect(order.taxStatus).toBe('taxable')
+    expect(order.total).toBe(27120)
+  })
+
+  it('rejects confirm when config/tax has no rate effective yet, even though the quote was made under a valid one', async () => {
+    await seedSku()
+    await seedItem('item1')
+    await seedBuyer('buyer1')
+    const quote = await createOrder(db, { buyerId: 'buyer1', itemIds: ['item1'] })
+
+    // confirmOrder re-reads config/tax fresh rather than trusting the quote.
+    await seedTaxConfig([{ effectiveFrom: new Date('2999-01-01'), rateBps: 1300 }])
+
+    await expect(confirmOrder(db, { orderId: quote.orderId })).rejects.toThrow(/No tax rate/)
   })
 })

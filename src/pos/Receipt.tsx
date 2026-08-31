@@ -14,6 +14,7 @@ export interface ReceiptData {
   lines: ReceiptLine[]
   subtotal: Cents
   tax: Cents
+  taxRateBps: number
   total: Cents
   confirmedAt: Date
 }
@@ -76,7 +77,9 @@ export default function Receipt({ receipt, onNewSale }: { receipt: ReceiptData; 
             <span className="num-md">{formatCents(receipt.subtotal)}</span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-muted text-sm">Tax:</span>
+            <span className="text-muted text-sm">
+              {receipt.taxRateBps > 0 ? `HST (${receipt.taxRateBps / 100}%):` : 'Tax:'}
+            </span>
             <span className="num-md">{formatCents(receipt.tax)}</span>
           </div>
           <div className="flex items-center justify-between border-t border-slate-200 pt-2 dark:border-slate-800">

@@ -55,6 +55,7 @@ async function fetchOrCreateWalkInBuyer(): Promise<Buyer> {
     tier: 'standard' as const,
     terms: 'prepay' as const,
     contact: {},
+    taxStatus: 'taxable' as const,
   }
   const result = await createBuyer(fields)
   return { buyerId: result.data.buyerId, ...fields }

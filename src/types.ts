@@ -51,6 +51,7 @@ export type StockItemStatus = 'inStock' | 'reserved' | 'sold' | 'scrapped' | 're
 export type BuyerType = 'repairShop' | 'broker' | 'exporter' | 'retail'
 export type BuyerTier = 'standard' | 'preferred' | 'partner'
 export type BuyerTerms = 'prepay' | 'net7' | 'net15'
+export type BuyerTaxStatus = 'taxable' | 'exempt' | 'zeroRated'
 export type SalesOrderStatus = 'quoted' | 'confirmed' | 'shipped' | 'paid'
 export type PaymentMethod = 'cash' | 'card' | 'eTransfer'
 export type TeardownProfileGrade = 'AB' | 'CD'
@@ -166,6 +167,7 @@ export interface Buyer {
   tier: BuyerTier
   terms: BuyerTerms
   contact: BuyerContact
+  taxStatus: BuyerTaxStatus
 }
 
 export interface OrderLine {
@@ -182,6 +184,8 @@ export interface SalesOrder {
   lines: OrderLine[]
   subtotal: Cents
   tax: Cents
+  taxRateBps: number
+  taxStatus: BuyerTaxStatus
   total: Cents
   status: SalesOrderStatus
   createdAt: Timestamp
@@ -227,4 +231,21 @@ export interface TeardownProfile {
   model: string
   donorGrade: TeardownProfileGrade
   expectedParts: ExpectedPart[]
+}
+
+export interface TaxRateEntry {
+  effectiveFrom: Timestamp
+  rateBps: number
+}
+
+export interface TaxConfig {
+  rates: TaxRateEntry[]
+}
+
+export interface BusinessConfig {
+  legalName: string
+  address: string
+  email: string
+  phone: string
+  hstNumber: string
 }

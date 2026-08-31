@@ -1,8 +1,10 @@
 import type { Firestore, WithFieldValue } from 'firebase-admin/firestore'
 import { FieldValue } from 'firebase-admin/firestore'
 import { resolveLinePrice } from './resolveLinePrice.js'
+import { calculateTax } from './calculateTax.js'
+import { currentTaxRateBps } from './taxRate.js'
 import { cents } from './types.js'
-import type { BulkStock, Buyer, OrderLine, SalesOrder, Sku, StockItem } from './types.js'
+import type { BulkStock, Buyer, OrderLine, SalesOrder, Sku, StockItem, TaxConfig } from './types.js'
 
 // ---------------------------------------------------------------------------
 // Raw, untrusted shapes as they arrive from the client — unknown until
@@ -22,6 +24,7 @@ export interface CreateOrderResult {
   orderId: string
   subtotal: SalesOrder['subtotal']
   tax: SalesOrder['tax']
+  taxRateBps: SalesOrder['taxRateBps']
   total: SalesOrder['total']
   lines: OrderLine[]
 }
@@ -96,7 +99,8 @@ export async function createOrder(
 
   return db.runTransaction(async (tx) => {
     const buyerRef = db.collection('buyers').doc(buyerId)
-    const buyerSnap = await tx.get(buyerRef)
+    const taxConfigRef = db.collection('config').doc('tax')
+    const [buyerSnap, taxConfigSnap] = await Promise.all([tx.get(buyerRef), tx.get(taxConfigRef)])
     if (!buyerSnap.exists) {
       throw new Error(`Buyer not found: ${buyerId}`)
     }
@@ -160,10 +164,20 @@ export async function createOrder(
 
     const lines = [...itemLines, ...bulkLinesOut]
     const subtotal = cents(lines.reduce((sum, line) => sum + line.unitPrice * line.qty, 0))
-    // No tax rate exists anywhere in the schema (no HST config, nothing) —
-    // rather than guess a rate and bake a possibly-wrong number into money
-    // code, this is 0 until a real rate source is defined.
-    const tax = cents(0)
+
+    // A preview only — confirmOrder recomputes and freezes the real tax at
+    // confirm time, re-reading both the buyer's taxStatus and this config
+    // fresh, since either may have changed by then. Shown here so a quote
+    // under review (OrderBuilder) doesn't display a misleading $0 tax.
+    if (!taxConfigSnap.exists) {
+      throw new Error('config/tax is not set up.')
+    }
+    const taxConfig = taxConfigSnap.data() as TaxConfig
+    const rateBps = currentTaxRateBps(
+      taxConfig.rates.map((r) => ({ effectiveFrom: r.effectiveFrom.toDate(), rateBps: r.rateBps })),
+      new Date(),
+    )
+    const { tax, appliedRateBps } = calculateTax({ subtotal, taxStatus: buyer.taxStatus ?? 'taxable', rateBps })
     const total = cents(subtotal + tax)
 
     const order: WithFieldValue<SalesOrder> = {
@@ -172,6 +186,8 @@ export async function createOrder(
       lines,
       subtotal,
       tax,
+      taxRateBps: appliedRateBps,
+      taxStatus: buyer.taxStatus ?? 'taxable',
       total,
       status: 'quoted',
       createdAt: FieldValue.serverTimestamp(),
@@ -183,6 +199,6 @@ export async function createOrder(
       tx.update(item.ref, { status: 'reserved' })
     }
 
-    return { orderId: orderRef.id, subtotal, tax, total, lines }
+    return { orderId: orderRef.id, subtotal, tax, taxRateBps: appliedRateBps, total, lines }
   })
 }

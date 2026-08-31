@@ -62,6 +62,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /config/{docId} {
+      allow read: if isStaff();
+      allow write: if false;
+    }
+
     // Deny-all default for anything not explicitly listed above.
     match /{document=**} {
       allow read, write: if false;

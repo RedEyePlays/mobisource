@@ -53,6 +53,7 @@ export default function BuyerList({ onCreate, onEdit }: { onCreate: () => void; 
                 <th>Type</th>
                 <th>Tier</th>
                 <th>Terms</th>
+                <th>Tax</th>
                 <th></th>
               </tr>
             </thead>
@@ -63,6 +64,7 @@ export default function BuyerList({ onCreate, onEdit }: { onCreate: () => void; 
                   <td>{buyer.type}</td>
                   <td>{buyer.tier}</td>
                   <td>{buyer.terms}</td>
+                  <td>{buyer.taxStatus ?? 'taxable'}</td>
                   <td>
                     <button onClick={() => onEdit(buyer)} className="btn-secondary btn-sm">
                       Edit

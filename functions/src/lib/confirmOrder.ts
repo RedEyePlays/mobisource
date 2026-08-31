@@ -1,6 +1,9 @@
 import type { Firestore, WithFieldValue } from 'firebase-admin/firestore'
 import { FieldValue } from 'firebase-admin/firestore'
-import type { BulkStock, PaymentMethod, SalesOrder, StockItem, StockMovement } from './types.js'
+import { calculateTax } from './calculateTax.js'
+import { currentTaxRateBps } from './taxRate.js'
+import { cents } from './types.js'
+import type { Buyer, BulkStock, PaymentMethod, SalesOrder, StockItem, StockMovement, TaxConfig } from './types.js'
 
 const PAYMENT_METHODS: readonly PaymentMethod[] = ['cash', 'card', 'eTransfer']
 
@@ -40,10 +43,19 @@ function parsePaymentMethod(raw: unknown): PaymentMethod | null {
  * If any assertion fails, everything queued above is discarded — nothing
  * commits.
  */
+export interface ConfirmOrderResult {
+  orderId: string
+  status: 'confirmed'
+  subtotal: SalesOrder['subtotal']
+  tax: SalesOrder['tax']
+  taxRateBps: SalesOrder['taxRateBps']
+  total: SalesOrder['total']
+}
+
 export async function confirmOrder(
   db: Firestore,
   { orderId, paymentMethod }: ConfirmOrderInput,
-): Promise<{ orderId: string; status: 'confirmed' }> {
+): Promise<ConfirmOrderResult> {
   if (!orderId) {
     throw new Error('orderId is required.')
   }
@@ -59,6 +71,31 @@ export async function confirmOrder(
     if (order.status !== 'quoted') {
       throw new Error(`Order status is '${order.status}', expected 'quoted'.`)
     }
+
+    // Tax is calculated here, at confirm — not carried over from the quote
+    // — and re-reads both the buyer's taxStatus and the rate config fresh,
+    // since either could have changed while this quote sat around. Once
+    // written below, it's never recomputed again: a past order's tax must
+    // never move (docs/SCHEMA.md §3), even if the buyer's status or the
+    // configured rate changes afterward.
+    const buyerRef = db.collection('buyers').doc(order.buyerId)
+    const taxConfigRef = db.collection('config').doc('tax')
+    const [buyerSnap, taxConfigSnap] = await Promise.all([tx.get(buyerRef), tx.get(taxConfigRef)])
+    if (!buyerSnap.exists) {
+      throw new Error(`Buyer not found: ${order.buyerId}`)
+    }
+    if (!taxConfigSnap.exists) {
+      throw new Error('config/tax is not set up.')
+    }
+    const buyer = buyerSnap.data() as Buyer
+    const taxConfig = taxConfigSnap.data() as TaxConfig
+    const rateBps = currentTaxRateBps(
+      taxConfig.rates.map((r) => ({ effectiveFrom: r.effectiveFrom.toDate(), rateBps: r.rateBps })),
+      new Date(),
+    )
+    const taxStatus = buyer.taxStatus ?? 'taxable'
+    const { tax, appliedRateBps } = calculateTax({ subtotal: order.subtotal, taxStatus, rateBps })
+    const total = cents(order.subtotal + tax)
 
     const itemLines = order.lines.filter((line) => line.itemId != null)
     const bulkLines = order.lines.filter((line) => line.itemId == null)
@@ -135,8 +172,15 @@ export async function confirmOrder(
       tx.set(movementRef, movement)
     })
 
-    tx.update(orderRef, { status: 'confirmed', paymentMethod: parsedPaymentMethod })
+    tx.update(orderRef, {
+      status: 'confirmed',
+      paymentMethod: parsedPaymentMethod,
+      tax,
+      taxRateBps: appliedRateBps,
+      taxStatus,
+      total,
+    })
 
-    return { orderId, status: 'confirmed' as const }
+    return { orderId, status: 'confirmed' as const, subtotal: order.subtotal, tax, taxRateBps: appliedRateBps, total }
   })
 }

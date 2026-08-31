@@ -8,17 +8,31 @@ import { findInStockItemsForSku, resolveScan } from './lookup'
 import { addItemLine, addOrIncrementBulkLine, removeCartLine, updateBulkQty } from './cart'
 import type { CartLine } from './cart'
 import { resolveLinePrice } from './resolveLinePrice'
+import { calculateTax } from './calculateTax'
+import { currentTaxRateBps } from './taxRate'
+import type { DatedRate } from './taxRate'
 import Cart from './Cart'
 import Receipt from './Receipt'
 import type { ReceiptData } from './Receipt'
-import type { Buyer, Cents, OrderLine, PaymentMethod, Sku, StockItem } from '../types'
+import { cents } from '../types'
+import type { Buyer, Cents, OrderLine, PaymentMethod, Sku, StockItem, TaxConfig } from '../types'
 
 interface CreateOrderResult {
   orderId: string
   subtotal: Cents
   tax: Cents
+  taxRateBps: number
   total: Cents
   lines: OrderLine[]
+}
+
+interface ConfirmOrderResult {
+  orderId: string
+  status: 'confirmed'
+  subtotal: Cents
+  tax: Cents
+  taxRateBps: number
+  total: Cents
 }
 
 const PAYMENT_METHODS: { key: PaymentMethod; label: string }[] = [
@@ -55,6 +69,9 @@ export default function PosScreen() {
   const [checkoutError, setCheckoutError] = useState('')
   const [pendingOrder, setPendingOrder] = useState<CreateOrderResult | null>(null)
   const [receipt, setReceipt] = useState<ReceiptData | null>(null)
+  // Preview only, for the "Charge $X" button before checkout — confirmOrder
+  // re-reads config/tax itself and freezes the authoritative rate.
+  const [taxRates, setTaxRates] = useState<DatedRate[] | null>(null)
 
   const scanInputRef = useRef<HTMLInputElement>(null)
 
@@ -65,6 +82,18 @@ export default function PosScreen() {
         setWalkInBuyer(b)
         setBuyer(b)
       }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    getDoc(doc(db, 'config', 'tax')).then((snap) => {
+      if (cancelled || !snap.exists()) return
+      const config = snap.data() as TaxConfig
+      setTaxRates(config.rates.map((r) => ({ effectiveFrom: r.effectiveFrom.toDate(), rateBps: r.rateBps })))
     })
     return () => {
       cancelled = true
@@ -241,12 +270,15 @@ export default function PosScreen() {
         setPendingOrder(order)
       }
 
-      const confirmOrder = httpsCallable<{ orderId: string; paymentMethod: PaymentMethod }, { orderId: string }>(
+      const confirmOrder = httpsCallable<{ orderId: string; paymentMethod: PaymentMethod }, ConfirmOrderResult>(
         functions,
         'confirmOrder',
       )
-      await confirmOrder({ orderId: order.orderId, paymentMethod })
+      const confirmed = await confirmOrder({ orderId: order.orderId, paymentMethod })
 
+      // The receipt shows confirmOrder's authoritative, frozen values — not
+      // createOrder's pre-confirm preview — since those are the ones that
+      // actually get charged and can never change afterward.
       setReceipt({
         orderId: order.orderId,
         buyerName: buyer.name,
@@ -259,9 +291,10 @@ export default function PosScreen() {
           qty: line.qty,
           unitPrice: line.unitPrice,
         })),
-        subtotal: order.subtotal,
-        tax: order.tax,
-        total: order.total,
+        subtotal: confirmed.data.subtotal,
+        tax: confirmed.data.tax,
+        taxRateBps: confirmed.data.taxRateBps,
+        total: confirmed.data.total,
         confirmedAt: new Date(),
       })
       setCart([])
@@ -286,10 +319,25 @@ export default function PosScreen() {
     )
   }
 
-  const total = cart.reduce((sum, line) => {
+  const subtotal = cart.reduce((sum, line) => {
     const unitPrice = resolveLinePrice({ sku: line.sku, buyer, qty: line.qty })
     return sum + unitPrice * line.qty
   }, 0) as Cents
+
+  // Preview only — same caveat as resolveLinePrice above. Falls back to $0
+  // tax (subtotal-only total) if config/tax hasn't loaded yet or has no
+  // rate effective yet; confirmOrder is the real authority and will throw
+  // for real at checkout if config/tax genuinely isn't set up.
+  let previewTax = cents(0)
+  if (taxRates) {
+    try {
+      const rateBps = currentTaxRateBps(taxRates, new Date())
+      previewTax = calculateTax({ subtotal, taxStatus: buyer.taxStatus ?? 'taxable', rateBps }).tax
+    } catch {
+      // no rate effective yet — leave previewTax at $0
+    }
+  }
+  const total = cents(subtotal + previewTax)
 
   return (
     <div className="mx-auto max-w-2xl p-4 pb-40 sm:p-6">

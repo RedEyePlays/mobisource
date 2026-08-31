@@ -236,7 +236,12 @@ type             string    repairShop | broker | exporter | retail
 tier             string    standard | preferred | partner
 terms            string    prepay | net7 | net15
 contact          object
+taxStatus        string    taxable | exempt | zeroRated — default taxable, see §11
 ```
+
+A buyer doc written before `taxStatus` existed has no such field at all —
+every read site treats a missing field the same as `taxable`
+(`buyer.taxStatus ?? 'taxable'`), so there is no backfill migration.
 
 `tier` is ordered worst-to-best for the buyer: `standard` is the default,
 `partner` is the best (e.g. a high-volume repeat account). Named this way —
@@ -249,11 +254,24 @@ pricing rule below.
 orderId          string
 buyerId          string
 lines            array     [{ skuCode, itemId?, qty, unitPrice, unitCost }]
-subtotal, tax, total
+subtotal         number    cents — Σ unitPrice × qty across lines
+tax              number    cents — see §11; 0 for an exempt/zeroRated buyer
+taxRateBps       number    the rate actually applied, basis points (1300 = 13%);
+                            0 for an exempt/zeroRated buyer even though a
+                            nonzero rate was configured — see §11
+taxStatus        string    the buyer's taxStatus *as of confirm* — snapshotted
+                            here so it can never drift from what was charged
+total            number    cents — subtotal + tax
 status           string    quoted | confirmed | shipped | paid
 createdAt        timestamp
 paymentMethod    string    cash | card | eTransfer | null — see §8
 ```
+
+`tax`, `taxRateBps`, `taxStatus`, and `total` are all computed fresh by
+`confirmOrder` at confirm time and then frozen — see §11. `createOrder`
+computes the same fields as a non-authoritative preview so the quote-review
+screen shows a realistic number, but only `confirmOrder`'s values are ever
+written to a *confirmed* order, and never recomputed after that.
 
 `itemId` is set for a serialized line (one specific `stockItem`) and omitted
 for a bulk line (SKU + qty against `bulkStock`). `unitCost` is a snapshot —
@@ -303,6 +321,28 @@ it worse. Worked examples, given `listPriceTier1=$100` (1-4u),
 This resolution always happens server-side in the order-building callable —
 a client never supplies or sees the other tiers' prices for a line it
 didn't order.
+
+### `config` — dated business/tax configuration
+
+Two fixed docs, staff-read/`write: if false` (like `teardownProfiles`) —
+populated by `scripts/seed.ts` for dev/emulator and by direct admin-SDK
+access in production. No in-app editor exists; none was asked for.
+
+```
+config/tax
+  rates          array     [{ effectiveFrom: timestamp, rateBps: number }]
+```
+
+```
+config/business
+  legalName      string
+  address        string
+  email          string
+  phone          string
+  hstNumber      string    HST registration number, shown on invoices — see §11
+```
+
+See §11 for how `config/tax.rates` is picked and frozen, and where `hstNumber` is used.
 
 ## 3.5 Teardown profiles
 
@@ -560,3 +600,57 @@ reflects it. Not addressed here.
 7. Bulk receiving + supplierSkuMap
 8. Reports
 9. Point of sale (walk-in counter)
+10. Tax (HST), invoices, returns, quote expiry, stock adjustments
+
+---
+
+## 11. Tax (HST)
+
+Ontario HST, 13% as of writing — but the rate is **configured, not
+hardcoded**, and **dated**, per `config/tax` (§3):
+
+```
+rates: [{ effectiveFrom, rateBps }]
+```
+
+`rateBps` is basis points (1300 = 13%), not a decimal, so the rate is
+always an exact integer — no float rounding on the rate itself, only on
+the one place tax actually gets computed:
+
+```
+tax = round(subtotal × rateBps / 10000)     — half-up (Math.round), the
+                                               only rounding step, applied
+                                               once to the whole order
+                                               subtotal, never per line
+```
+
+**Picking the rate:** `currentTaxRateBps(rates, asOf)` — the entry with the
+latest `effectiveFrom` that isn't after `asOf`. Adding a new dated entry
+changes what a *future* order is charged without touching any order
+that's already confirmed; there is no edit-in-place path for a rate.
+
+**When it's calculated — and frozen:**
+
+- `createOrder` computes `tax`/`taxRateBps` as a **preview**, using the
+  rate in effect right now and the buyer's current `taxStatus`, purely so
+  the quote-review screen shows a realistic number. This is
+  non-authoritative.
+- `confirmOrder` re-reads both the buyer's `taxStatus` and `config/tax`
+  **fresh**, inside the same transaction that confirms the order, and
+  computes the real `tax`/`taxRateBps`/`taxStatus`/`total`. These are
+  written onto the order **once** and never recomputed again — a change to
+  the buyer's `taxStatus` or to `config/tax` after this point can never
+  move an already-confirmed order's tax, even though it would change what
+  a *new* order gets charged. This is the literal meaning of "a past
+  order's tax must never move."
+
+**`buyers.taxStatus`:** `taxable | exempt | zeroRated`, default `taxable`.
+Exempt and zero-rated both charge $0 HST — the distinction is kept because
+they mean different things on a real HST return (zero-rated supplies still
+count toward taxable revenue for input-tax-credit purposes, exempt
+supplies don't), even though nothing in this codebase acts on that
+difference yet beyond charging $0 either way.
+
+**HST registration number:** `config/business.hstNumber` — grouped with
+the rest of the business identity fields (§3), not with `config/tax`,
+since it's invoice/business-identity information, not a rate.

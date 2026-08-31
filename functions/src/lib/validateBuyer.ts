@@ -1,8 +1,9 @@
-import type { BuyerTerms, BuyerTier, BuyerType } from './types.js'
+import type { BuyerTaxStatus, BuyerTerms, BuyerTier, BuyerType } from './types.js'
 
 const TYPES: readonly BuyerType[] = ['repairShop', 'broker', 'exporter', 'retail']
 const TIERS: readonly BuyerTier[] = ['standard', 'preferred', 'partner']
 const TERMS: readonly BuyerTerms[] = ['prepay', 'net7', 'net15']
+const TAX_STATUSES: readonly BuyerTaxStatus[] = ['taxable', 'exempt', 'zeroRated']
 
 function isBuyerType(value: unknown): value is BuyerType {
   return typeof value === 'string' && (TYPES as readonly string[]).includes(value)
@@ -16,12 +17,17 @@ function isBuyerTerms(value: unknown): value is BuyerTerms {
   return typeof value === 'string' && (TERMS as readonly string[]).includes(value)
 }
 
+export function isBuyerTaxStatus(value: unknown): value is BuyerTaxStatus {
+  return typeof value === 'string' && (TAX_STATUSES as readonly string[]).includes(value)
+}
+
 export interface BuyerFieldsInput {
   name?: unknown
   type?: unknown
   tier?: unknown
   terms?: unknown
   contact?: unknown
+  taxStatus?: unknown
 }
 
 /**
@@ -54,6 +60,13 @@ export function validateBuyerFields(fields: BuyerFieldsInput, { requireAll = fal
   if ('contact' in fields) {
     if (typeof fields.contact !== 'object' || fields.contact === null || Array.isArray(fields.contact)) {
       throw new Error('contact must be an object.')
+    }
+  }
+  // taxStatus defaults to 'taxable' (docs/SCHEMA.md §3) — never required by
+  // requireAll, only validated when the caller actually supplied one.
+  if ('taxStatus' in fields && fields.taxStatus !== undefined) {
+    if (!isBuyerTaxStatus(fields.taxStatus)) {
+      throw new Error(`taxStatus must be one of ${TAX_STATUSES.join(', ')}.`)
     }
   }
 }

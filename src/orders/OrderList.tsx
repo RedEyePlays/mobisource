@@ -61,6 +61,7 @@ export default function OrderList({ onCreate }: { onCreate: () => void }) {
                 <th>Buyer</th>
                 <th>Status</th>
                 <th>Payment</th>
+                <th>Tax</th>
                 <th>Total</th>
                 <th>Margin</th>
               </tr>
@@ -72,6 +73,9 @@ export default function OrderList({ onCreate }: { onCreate: () => void }) {
                   <td>{order.buyerId}</td>
                   <td>{order.status}</td>
                   <td>{order.paymentMethod ?? '—'}</td>
+                  <td>
+                    <span className="num-md">{formatCents(order.tax)}</span>
+                  </td>
                   <td>
                     <span className="num-md">{formatCents(order.total)}</span>
                   </td>
