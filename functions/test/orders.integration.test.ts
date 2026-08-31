@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
+import type { Firestore } from 'firebase-admin/firestore'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { createOrder } from '../src/lib/createOrder.js'
 import { confirmOrder } from '../src/lib/confirmOrder.js'
@@ -8,7 +9,7 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
   throw new Error('FIRESTORE_EMULATOR_HOST is not set — run this via `npm run test:integration`.')
 }
 
-let db
+let db: Firestore
 
 beforeAll(() => {
   const app = initializeApp({ projectId: 'demo-mobisource' })
@@ -16,7 +17,7 @@ beforeAll(() => {
 })
 
 afterEach(async () => {
-  const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(':')
+  const [host, port] = process.env.FIRESTORE_EMULATOR_HOST!.split(':')
   await fetch(
     `http://${host}:${port}/emulator/v1/projects/demo-mobisource/databases/(default)/documents`,
     { method: 'DELETE' },
@@ -35,7 +36,7 @@ async function seedSku() {
   })
 }
 
-async function seedItem(id, overrides = {}) {
+async function seedItem(id: string, overrides: Record<string, unknown> = {}) {
   await db.collection('stockItems').doc(id).set({
     itemId: id,
     skuCode: SCRN,
@@ -52,7 +53,7 @@ async function seedItem(id, overrides = {}) {
   })
 }
 
-async function seedBuyer(id, overrides = {}) {
+async function seedBuyer(id: string, overrides: Record<string, unknown> = {}) {
   await db.collection('buyers').doc(id).set({
     buyerId: id,
     name: 'Test Buyer',
@@ -64,7 +65,7 @@ async function seedBuyer(id, overrides = {}) {
   })
 }
 
-async function countDocs(collection) {
+async function countDocs(collection: string) {
   const snap = await db.collection(collection).get()
   return snap.size
 }
@@ -84,12 +85,12 @@ describe('createOrder', () => {
     expect(result.tax).toBe(0)
     expect(result.total).toBe(24000)
 
-    const order = (await db.collection('salesOrders').doc(result.orderId).get()).data()
+    const order = (await db.collection('salesOrders').doc(result.orderId).get()).data()!
     expect(order.status).toBe('quoted')
     expect(order).not.toHaveProperty('margin')
     expect(order).not.toHaveProperty('totalCost')
 
-    const item = (await db.collection('stockItems').doc('item1').get()).data()
+    const item = (await db.collection('stockItems').doc('item1').get()).data()!
     expect(item.status).toBe('reserved')
   })
 
@@ -121,7 +122,7 @@ describe('createOrder', () => {
     await expect(createOrder(db, { buyerId: 'buyer1', itemIds: ['item1'] })).rejects.toThrow(/inStock/)
 
     expect(await countDocs('salesOrders')).toBe(0)
-    const item = (await db.collection('stockItems').doc('item1').get()).data()
+    const item = (await db.collection('stockItems').doc('item1').get()).data()!
     expect(item.status).toBe('reserved')
   })
 
@@ -144,10 +145,10 @@ describe('confirmOrder', () => {
     const result = await confirmOrder(db, { orderId })
     expect(result.status).toBe('confirmed')
 
-    const order = (await db.collection('salesOrders').doc(orderId).get()).data()
+    const order = (await db.collection('salesOrders').doc(orderId).get()).data()!
     expect(order.status).toBe('confirmed')
 
-    const item = (await db.collection('stockItems').doc('item1').get()).data()
+    const item = (await db.collection('stockItems').doc('item1').get()).data()!
     expect(item.status).toBe('sold')
     expect(item.soldPrice).toBe(24000)
     expect(item.buyerId).toBe('buyer1')
@@ -171,7 +172,7 @@ describe('confirmOrder', () => {
     await expect(confirmOrder(db, { orderId })).rejects.toThrow(/quoted/)
 
     expect(await countDocs('stockMovements')).toBe(movementCountAfterFirst)
-    const item = (await db.collection('stockItems').doc('item1').get()).data()
+    const item = (await db.collection('stockItems').doc('item1').get()).data()!
     expect(item.status).toBe('sold')
   })
 })

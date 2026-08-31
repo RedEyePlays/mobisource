@@ -17,13 +17,16 @@ function isPurchaseCurrency(value: unknown): value is PurchaseCurrency {
 }
 
 export interface DonorIntakeInput {
+  model?: unknown
   purchaseCost?: unknown
   condition?: unknown
   source?: unknown
+  supplierRef?: unknown
   purchaseCurrency?: unknown
   fxRateUsed?: unknown
   imei?: unknown
   imeiBlankReason?: unknown
+  notes?: unknown
 }
 
 /**

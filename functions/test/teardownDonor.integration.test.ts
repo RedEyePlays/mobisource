@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
+import type { Firestore } from 'firebase-admin/firestore'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { teardownDonor } from '../src/lib/teardownDonor.js'
 
@@ -7,7 +8,7 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
   throw new Error('FIRESTORE_EMULATOR_HOST is not set — run this via `npm run test:integration`.')
 }
 
-let db
+let db: Firestore
 
 beforeAll(() => {
   const app = initializeApp({ projectId: 'demo-mobisource' })
@@ -15,7 +16,7 @@ beforeAll(() => {
 })
 
 afterEach(async () => {
-  const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(':')
+  const [host, port] = process.env.FIRESTORE_EMULATOR_HOST!.split(':')
   await fetch(
     `http://${host}:${port}/emulator/v1/projects/demo-mobisource/databases/(default)/documents`,
     { method: 'DELETE' },
@@ -63,7 +64,7 @@ async function seedCatalog() {
   })
 }
 
-async function seedIntactDonor(id, overrides = {}) {
+async function seedIntactDonor(id: string, overrides: Record<string, unknown> = {}) {
   await db.collection('donors').doc(id).set({
     model: MODEL,
     imei: '011112223334445',
@@ -85,7 +86,7 @@ async function seedIntactDonor(id, overrides = {}) {
   })
 }
 
-async function countDocs(collection) {
+async function countDocs(collection: string) {
   const snap = await db.collection(collection).get()
   return snap.size
 }
@@ -108,24 +109,26 @@ describe('teardownDonor', () => {
     expect(result.itemsCreated).toHaveLength(3)
 
     const teardownSnap = await db.collection('teardowns').doc(result.teardownId).get()
-    const teardown = teardownSnap.data()
+    const teardown = teardownSnap.data()!
     expect(teardown.donorId).toBe('donor1')
     expect(teardown.donorCost).toBe(40000)
     expect(teardown.allocations).toHaveLength(2)
-    expect(teardown.allocations.reduce((sum, a) => sum + a.allocatedCost, 0)).toBe(40000)
+    expect(
+      teardown.allocations.reduce((sum: number, a: { allocatedCost: number }) => sum + a.allocatedCost, 0),
+    ).toBe(40000)
     expect(teardown.costCheck).toBe(40000)
     expect(teardown.scrapped).toEqual([{ partType: 'BATT', reason: 'swollen' }])
     expect(teardown.notHarvested).toEqual([{ partType: 'CAMR', reason: '' }])
 
     const donorSnap = await db.collection('donors').doc('donor1').get()
-    expect(donorSnap.data().status).toBe('tornDown')
-    expect(donorSnap.data().teardownId).toBe(result.teardownId)
+    expect(donorSnap.data()!.status).toBe('tornDown')
+    expect(donorSnap.data()!.teardownId).toBe(result.teardownId)
 
     const itemsSnap = await db.collection('stockItems').where('donorId', '==', 'donor1').get()
     expect(itemsSnap.size).toBe(3)
     const items = itemsSnap.docs.map((d) => d.data())
-    const scrn = items.find((i) => i.skuCode === SCRN)
-    const batt = items.find((i) => i.skuCode === BATT)
+    const scrn = items.find((i) => i.skuCode === SCRN)!
+    const batt = items.find((i) => i.skuCode === BATT)!
     expect(scrn.status).toBe('inStock')
     expect(scrn.allocatedCost).toBeGreaterThan(0)
     expect(batt.status).toBe('scrapped')
@@ -157,7 +160,7 @@ describe('teardownDonor', () => {
     expect(await countDocs('stockMovements')).toBe(movementCountAfterFirst)
 
     const donorSnap = await db.collection('donors').doc('donor2').get()
-    expect(donorSnap.data().status).toBe('tornDown')
+    expect(donorSnap.data()!.status).toBe('tornDown')
   })
 
   it('freezes expectedResale at teardown time — a later SKU price change never touches an existing teardown', async () => {
@@ -173,15 +176,15 @@ describe('teardownDonor', () => {
     })
 
     const itemsBefore = await db.collection('stockItems').where('donorId', '==', 'donor3').get()
-    const scrnItemBefore = itemsBefore.docs.map((d) => d.data()).find((i) => i.skuCode === SCRN)
-    const teardownBefore = (await db.collection('teardowns').doc(result.teardownId).get()).data()
+    const scrnItemBefore = itemsBefore.docs.map((d) => d.data()).find((i) => i.skuCode === SCRN)!
+    const teardownBefore = (await db.collection('teardowns').doc(result.teardownId).get()).data()!
 
     // Simulate updateSku changing expectedResale well after this teardown.
     await db.collection('skus').doc(SCRN).update({ expectedResale: 999999 })
 
     const itemsAfter = await db.collection('stockItems').where('donorId', '==', 'donor3').get()
-    const scrnItemAfter = itemsAfter.docs.map((d) => d.data()).find((i) => i.skuCode === SCRN)
-    const teardownAfter = (await db.collection('teardowns').doc(result.teardownId).get()).data()
+    const scrnItemAfter = itemsAfter.docs.map((d) => d.data()).find((i) => i.skuCode === SCRN)!
+    const teardownAfter = (await db.collection('teardowns').doc(result.teardownId).get()).data()!
 
     expect(scrnItemAfter.allocatedCost).toBe(scrnItemBefore.allocatedCost)
     expect(teardownAfter.allocations).toEqual(teardownBefore.allocations)
