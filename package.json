@@ -7,9 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:unit": "vitest run src",
+    "test:unit": "vitest run src functions/src",
     "test:rules": "firebase emulators:exec --only firestore --project demo-mobisource \"vitest run tests/rules\"",
-    "seed:emulator": "firebase emulators:exec --only firestore --project demo-mobisource \"node scripts/seed.js\""
+    "seed:emulator": "firebase emulators:exec --only firestore --project demo-mobisource \"node scripts/seed.js\"",
+    "emulators": "firebase emulators:start --only auth,firestore,functions --project demo-mobisource"
   },
   "dependencies": {
     "firebase": "^12.0.0",
