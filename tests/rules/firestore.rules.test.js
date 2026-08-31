@@ -30,21 +30,22 @@ afterAll(async () => {
 })
 
 describe('firestore.rules deny-all default', () => {
-  // bulkStock/ has no per-collection rule yet (that lands with its own
-  // phase), so it's a stand-in for "anything not explicitly listed in
-  // firestore.rules".
+  // Every collection in docs/SCHEMA.md now has its own explicit rules, so
+  // there's no real collection left to use as a "no rule yet" stand-in.
+  // Use a name that will never be a real collection instead — the rule
+  // engine only cares about the path, not whether it's a schema concept.
 
   it('denies an unauthenticated client', async () => {
     const db = testEnv.unauthenticatedContext().firestore()
 
-    await assertFails(getDoc(doc(db, 'bulkStock/MS-BATT-IP14P-N-AFT')))
-    await assertFails(setDoc(doc(db, 'bulkStock/MS-BATT-IP14P-N-AFT'), { qtyOnHand: 10 }))
+    await assertFails(getDoc(doc(db, 'notARealCollection/doc1')))
+    await assertFails(setDoc(doc(db, 'notARealCollection/doc1'), { anything: true }))
   })
 
   it('denies an authenticated staff client with no per-collection rule', async () => {
     const db = testEnv.authenticatedContext('staff1', { staff: true }).firestore()
 
-    await assertFails(getDoc(doc(db, 'bulkStock/MS-BATT-IP14P-N-AFT')))
-    await assertFails(setDoc(doc(db, 'bulkStock/MS-BATT-IP14P-N-AFT'), { qtyOnHand: 10 }))
+    await assertFails(getDoc(doc(db, 'notARealCollection/doc1')))
+    await assertFails(setDoc(doc(db, 'notARealCollection/doc1'), { anything: true }))
   })
 })
