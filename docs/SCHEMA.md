@@ -920,6 +920,17 @@ in code, rather than a composite `(status, createdAt)` index — `quoted` is
 always a small, bounded set (everything else has already moved to a
 terminal status), so this stays correct without an index deployment.
 
+**Currently not deployed.** `expireStaleQuotes` is written and tested
+(`lib/expireStaleQuotes.ts` and its integration tests), but its `onSchedule`
+export is commented out in `functions/src/index.ts` — deploying any
+scheduled function requires the Cloud Scheduler API enabled on the GCP
+project, and the deploying service account doesn't currently have
+permission to auto-enable it, which failed the whole `functions` deploy.
+Quotes won't auto-expire on a timer until a project owner enables that API
+(or grants the deploy service account Service Usage Admin) and the export
+is restored — `cancelOrder` still works for an explicit cancel in the
+meantime.
+
 **What actually happens on cancel, for each line:**
 
 ```
