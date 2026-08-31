@@ -37,8 +37,8 @@ export default function DonorSearch({ onSelect }: { onSelect: (donor: Donor) => 
   }, [donors, search])
 
   return (
-    <div className="p-4 max-w-lg mx-auto">
-      <h2 className="text-xl font-semibold mb-4">Tear down a donor</h2>
+    <div className="mx-auto max-w-lg p-4">
+      <h2 className="page-title mb-4 text-2xl">Tear down a donor</h2>
 
       <input
         type="text"
@@ -46,13 +46,13 @@ export default function DonorSearch({ onSelect }: { onSelect: (donor: Donor) => 
         onChange={(e) => setSearch(e.target.value)}
         placeholder="Search by IMEI or model"
         autoFocus
-        className="w-full border rounded-lg px-4 py-4 text-lg mb-4"
+        className="input mb-4 py-4 text-lg"
       />
 
       {loading ? (
         <p className="text-lg">Loading…</p>
       ) : filtered.length === 0 ? (
-        <p className="text-lg text-gray-500">
+        <p className="text-muted text-lg">
           {donors.length === 0 ? 'No intact donors to tear down.' : 'No donors match that search.'}
         </p>
       ) : (
@@ -61,16 +61,14 @@ export default function DonorSearch({ onSelect }: { onSelect: (donor: Donor) => 
             <button
               key={donor.id}
               onClick={() => onSelect(donor)}
-              className="w-full text-left border rounded-lg px-4 py-4 active:bg-gray-100"
+              className="card active:bg-slate-100 dark:active:bg-slate-800 w-full px-4 py-4 text-left"
             >
               <div className="flex items-center justify-between">
                 <span className="text-lg font-semibold">{donor.model}</span>
-                <span className="text-lg">{formatCents(donor.purchaseCost)}</span>
+                <span className="num-lg">{formatCents(donor.purchaseCost)}</span>
               </div>
-              <div className="text-gray-600 mt-1">
-                {donor.imei || `IMEI blank — ${donor.imeiBlankReason}`}
-              </div>
-              <div className="text-gray-600">Condition {donor.condition}</div>
+              <div className="text-muted mt-1">{donor.imei || `IMEI blank — ${donor.imeiBlankReason}`}</div>
+              <div className="text-muted">Condition {donor.condition}</div>
             </button>
           ))}
         </div>

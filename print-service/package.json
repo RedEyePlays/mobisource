@@ -1,0 +1,25 @@
+{
+  "name": "mobisource-print-service",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "engines": {
+    "node": "22"
+  },
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node lib/index.js",
+    "test": "vitest run",
+    "render-previews": "tsx scripts/render-previews.ts"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^26.4.0",
+    "@types/qrcode": "^1.5.5",
+    "qrcode": "^1.5.4",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.0"
+  }
+}

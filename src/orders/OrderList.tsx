@@ -35,46 +35,52 @@ export default function OrderList({ onCreate }: { onCreate: () => void }) {
   }, [refreshKey])
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold">Sales orders</h2>
+    <div className="p-4 sm:p-6">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="page-title">Sales orders</h2>
         <div className="flex gap-2">
-          <button onClick={() => setRefreshKey((k) => k + 1)} className="border rounded px-3 py-1">
+          <button onClick={() => setRefreshKey((k) => k + 1)} className="btn-secondary btn-sm">
             Refresh
           </button>
-          <button onClick={onCreate} className="bg-black text-white rounded px-3 py-1">
+          <button onClick={onCreate} className="btn-primary btn-sm">
             New order
           </button>
         </div>
       </div>
 
       {loading ? (
-        <p>Loading…</p>
+        <p className="text-muted">Loading…</p>
       ) : orders.length === 0 ? (
-        <p className="text-gray-500">No orders yet.</p>
+        <p className="text-muted">No orders yet.</p>
       ) : (
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b">
-              <th className="py-2 pr-4">Order</th>
-              <th className="py-2 pr-4">Buyer</th>
-              <th className="py-2 pr-4">Status</th>
-              <th className="py-2 pr-4">Total</th>
-              <th className="py-2 pr-4">Margin</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders.map((order) => (
-              <tr key={order.orderId} className="border-b">
-                <td className="py-2 pr-4 font-mono text-sm">{order.orderId}</td>
-                <td className="py-2 pr-4">{order.buyerId}</td>
-                <td className="py-2 pr-4">{order.status}</td>
-                <td className="py-2 pr-4">{formatCents(order.total)}</td>
-                <td className="py-2 pr-4">{formatCents(margin(order))}</td>
+        <div className="table-wrap">
+          <table className="table-base">
+            <thead>
+              <tr>
+                <th>Order</th>
+                <th>Buyer</th>
+                <th>Status</th>
+                <th>Total</th>
+                <th>Margin</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {orders.map((order) => (
+                <tr key={order.orderId}>
+                  <td className="font-mono text-sm">{order.orderId}</td>
+                  <td>{order.buyerId}</td>
+                  <td>{order.status}</td>
+                  <td>
+                    <span className="num-md">{formatCents(order.total)}</span>
+                  </td>
+                  <td>
+                    <span className="num-md">{formatCents(margin(order))}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { collection, getDocs } from 'firebase/firestore'
 import type { Timestamp } from 'firebase/firestore'
 import { db } from '../firebase'
+import { printHarvestedLabel } from '../printing/printClient'
 import type { BulkStock, Cents, Grade, Sku, StockItem, StockItemStatus } from '../types'
 
 const STATUSES: readonly StockItemStatus[] = ['inStock', 'reserved', 'sold', 'scrapped', 'returned']
@@ -29,6 +30,9 @@ export default function StockList() {
   const [modelFilter, setModelFilter] = useState('')
   const [gradeFilter, setGradeFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+
+  const [printingId, setPrintingId] = useState<string | null>(null)
+  const [printStatus, setPrintStatus] = useState<Record<string, 'ok' | 'error' | undefined>>({})
 
   useEffect(() => {
     let cancelled = false
@@ -83,22 +87,36 @@ export default function StockList() {
   const bulkStockValue = bulkStock.reduce((sum, b) => sum + b.qtyOnHand * b.avgLandedCost, 0)
   const valueOnHand = stockItemsValue + bulkStockValue
 
+  async function handlePrint(item: StockItem) {
+    setPrintingId(item.id)
+    setPrintStatus((s) => ({ ...s, [item.id]: undefined }))
+    try {
+      const model = skusByCode[item.skuCode]?.model ?? ''
+      await printHarvestedLabel({ itemId: item.itemId, skuCode: item.skuCode, grade: item.grade, model })
+      setPrintStatus((s) => ({ ...s, [item.id]: 'ok' }))
+    } catch {
+      setPrintStatus((s) => ({ ...s, [item.id]: 'error' }))
+    } finally {
+      setPrintingId(null)
+    }
+  }
+
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold">Stock</h2>
-        <button onClick={() => setRefreshKey((k) => k + 1)} className="border rounded px-3 py-1">
+    <div className="p-4 sm:p-6">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="page-title">Stock</h2>
+        <button onClick={() => setRefreshKey((k) => k + 1)} className="btn-secondary btn-sm">
           Refresh
         </button>
       </div>
 
-      <div className="border rounded px-4 py-3 mb-4 inline-block">
-        <p className="text-sm text-gray-500">Value on hand</p>
-        <p className="text-xl font-semibold">{formatCents(valueOnHand as Cents)}</p>
+      <div className="card mb-4 inline-block px-4 py-3">
+        <p className="eyebrow">Value on hand</p>
+        <p className="num-hero">{formatCents(valueOnHand as Cents)}</p>
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-4">
-        <select value={skuFilter} onChange={(e) => setSkuFilter(e.target.value)} className="border rounded px-2 py-1">
+      <div className="mb-4 flex flex-wrap gap-2">
+        <select value={skuFilter} onChange={(e) => setSkuFilter(e.target.value)} className="select w-auto">
           <option value="">All SKUs</option>
           {Object.keys(skusByCode)
             .sort()
@@ -111,7 +129,7 @@ export default function StockList() {
         <select
           value={partTypeFilter}
           onChange={(e) => setPartTypeFilter(e.target.value)}
-          className="border rounded px-2 py-1"
+          className="select w-auto"
         >
           <option value="">All part types</option>
           {partTypes.map((p) => (
@@ -120,7 +138,7 @@ export default function StockList() {
             </option>
           ))}
         </select>
-        <select value={modelFilter} onChange={(e) => setModelFilter(e.target.value)} className="border rounded px-2 py-1">
+        <select value={modelFilter} onChange={(e) => setModelFilter(e.target.value)} className="select w-auto">
           <option value="">All models</option>
           {models.map((m) => (
             <option key={m} value={m}>
@@ -128,7 +146,7 @@ export default function StockList() {
             </option>
           ))}
         </select>
-        <select value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)} className="border rounded px-2 py-1">
+        <select value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)} className="select w-auto">
           <option value="">All grades</option>
           {GRADES.map((g) => (
             <option key={g} value={g}>
@@ -139,7 +157,7 @@ export default function StockList() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="border rounded px-2 py-1"
+          className="select w-auto"
         >
           <option value="">All statuses</option>
           {STATUSES.map((s) => (
@@ -151,32 +169,48 @@ export default function StockList() {
       </div>
 
       {loading ? (
-        <p>Loading…</p>
+        <p className="text-muted">Loading…</p>
       ) : filteredItems.length === 0 ? (
-        <p className="text-gray-500">No stock items match these filters.</p>
+        <p className="text-muted">No stock items match these filters.</p>
       ) : (
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b">
-              <th className="py-2 pr-4">SKU</th>
-              <th className="py-2 pr-4">Grade</th>
-              <th className="py-2 pr-4">Status</th>
-              <th className="py-2 pr-4">Allocated cost</th>
-              <th className="py-2 pr-4">Days in stock</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredItems.map((item) => (
-              <tr key={item.id} className="border-b">
-                <td className="py-2 pr-4 font-mono text-sm">{item.skuCode}</td>
-                <td className="py-2 pr-4">{item.grade}</td>
-                <td className="py-2 pr-4">{item.status}</td>
-                <td className="py-2 pr-4">{formatCents(item.allocatedCost)}</td>
-                <td className="py-2 pr-4">{daysInStock(item.createdAt)}</td>
+        <div className="table-wrap">
+          <table className="table-base">
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>Grade</th>
+                <th>Status</th>
+                <th>Allocated cost</th>
+                <th>Days in stock</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filteredItems.map((item) => (
+                <tr key={item.id}>
+                  <td className="font-mono text-sm">{item.skuCode}</td>
+                  <td>{item.grade}</td>
+                  <td>{item.status}</td>
+                  <td className="num-md">{formatCents(item.allocatedCost)}</td>
+                  <td>{daysInStock(item.createdAt)}</td>
+                  <td>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handlePrint(item)}
+                        disabled={printingId === item.id}
+                        className="btn-secondary btn-sm"
+                      >
+                        {printingId === item.id ? 'Printing…' : 'Print label'}
+                      </button>
+                      {printStatus[item.id] === 'ok' && <span className="text-xs text-emerald-600 dark:text-emerald-400">Printed</span>}
+                      {printStatus[item.id] === 'error' && <span className="text-danger text-xs">Failed</span>}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )

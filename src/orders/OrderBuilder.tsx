@@ -82,42 +82,55 @@ export default function OrderBuilder({ onDone }: { onDone: () => void }) {
   if (quote) {
     const margin = quote.lines.reduce((sum, line) => sum + (line.unitPrice - line.unitCost), 0)
     return (
-      <div className="p-6 max-w-lg">
-        <h2 className="text-lg font-semibold mb-4">Review quote</h2>
-        <table className="w-full text-left border-collapse mb-4">
-          <thead>
-            <tr className="border-b">
-              <th className="py-2 pr-4">SKU</th>
-              <th className="py-2 pr-4">Price</th>
-              <th className="py-2 pr-4">Cost</th>
-            </tr>
-          </thead>
-          <tbody>
-            {quote.lines.map((line) => (
-              <tr key={line.itemId} className="border-b">
-                <td className="py-2 pr-4 font-mono text-sm">{line.skuCode}</td>
-                <td className="py-2 pr-4">{formatCents(line.unitPrice)}</td>
-                <td className="py-2 pr-4">{formatCents(line.unitCost)}</td>
+      <div className="mx-auto max-w-lg p-4 sm:p-6">
+        <h2 className="page-title mb-4">Review quote</h2>
+        <div className="table-wrap mb-4">
+          <table className="table-base">
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>Price</th>
+                <th>Cost</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        <p>Subtotal: {formatCents(quote.subtotal)}</p>
-        <p>Tax: {formatCents(quote.tax)}</p>
-        <p className="font-semibold">Total: {formatCents(quote.total)}</p>
-        <p className="text-gray-500 text-sm mb-4">Margin: {formatCents(margin as Cents)}</p>
+            </thead>
+            <tbody>
+              {quote.lines.map((line) => (
+                <tr key={line.itemId}>
+                  <td className="font-mono text-sm">{line.skuCode}</td>
+                  <td>{formatCents(line.unitPrice)}</td>
+                  <td>{formatCents(line.unitCost)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
-        {error && <p className="text-red-600 text-sm">{error}</p>}
+        <div className="card mb-4 flex flex-col gap-3 p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-muted text-sm">Subtotal:</span>
+            <span className="num-md">{formatCents(quote.subtotal)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted text-sm">Tax:</span>
+            <span className="num-md">{formatCents(quote.tax)}</span>
+          </div>
+          <div className="flex items-center justify-between border-t border-slate-200 pt-3 dark:border-slate-800">
+            <span className="section-title">Total:</span>
+            <span className="num-hero">{formatCents(quote.total)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted text-sm">Margin:</span>
+            <span className="num-md">{formatCents(margin as Cents)}</span>
+          </div>
+        </div>
 
-        <div className="flex gap-2">
-          <button
-            onClick={handleConfirm}
-            disabled={submitting}
-            className="bg-black text-white rounded px-3 py-2 disabled:opacity-50"
-          >
+        {error && <p className="text-danger mb-4 text-sm">{error}</p>}
+
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button onClick={handleConfirm} disabled={submitting} className="btn-primary btn-block sm:w-auto">
             Confirm order
           </button>
-          <button onClick={onDone} className="border rounded px-3 py-2">
+          <button onClick={onDone} className="btn-secondary btn-block sm:w-auto">
             Cancel
           </button>
         </div>
@@ -126,12 +139,12 @@ export default function OrderBuilder({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <div className="p-6 max-w-lg">
-      <h2 className="text-lg font-semibold mb-4">Build order</h2>
+    <div className="mx-auto max-w-lg p-4 sm:p-6">
+      <h2 className="page-title mb-4">Build order</h2>
 
-      <label className="flex flex-col gap-1 mb-4">
+      <label className="field mb-4">
         Buyer
-        <select value={buyerId} onChange={(e) => setBuyerId(e.target.value)} className="border rounded px-3 py-2">
+        <select value={buyerId} onChange={(e) => setBuyerId(e.target.value)} className="select">
           <option value="">Select a buyer…</option>
           {buyers.map((buyer) => (
             <option key={buyer.buyerId} value={buyer.buyerId}>
@@ -141,47 +154,52 @@ export default function OrderBuilder({ onDone }: { onDone: () => void }) {
         </select>
       </label>
 
-      <p className="font-medium mb-2">In-stock items</p>
+      <p className="section-title mb-2">In-stock items</p>
       {items.length === 0 ? (
-        <p className="text-gray-500">No in-stock items.</p>
+        <p className="text-muted mb-4">No in-stock items.</p>
       ) : (
-        <table className="w-full text-left border-collapse mb-4">
-          <thead>
-            <tr className="border-b">
-              <th className="py-2 pr-4"></th>
-              <th className="py-2 pr-4">SKU</th>
-              <th className="py-2 pr-4">Grade</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr key={item.id} className="border-b">
-                <td className="py-2 pr-4">
-                  <input
-                    type="checkbox"
-                    checked={selectedItemIds.includes(item.id)}
-                    onChange={() => toggleItem(item.id)}
-                  />
-                </td>
-                <td className="py-2 pr-4 font-mono text-sm">{item.skuCode}</td>
-                <td className="py-2 pr-4">{item.grade}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="card mb-4 p-3">
+          <div className="table-wrap">
+            <table className="table-base">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>SKU</th>
+                  <th>Grade</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={selectedItemIds.includes(item.id)}
+                        onChange={() => toggleItem(item.id)}
+                        className="checkbox"
+                      />
+                    </td>
+                    <td className="font-mono text-sm">{item.skuCode}</td>
+                    <td>{item.grade}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
-      {error && <p className="text-red-600 text-sm">{error}</p>}
+      {error && <p className="text-danger mb-4 text-sm">{error}</p>}
 
-      <div className="flex gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
         <button
           onClick={handleCreateQuote}
           disabled={submitting || !buyerId || selectedItemIds.length === 0}
-          className="bg-black text-white rounded px-3 py-2 disabled:opacity-50"
+          className="btn-primary btn-block sm:w-auto"
         >
           Create quote
         </button>
-        <button onClick={onDone} className="border rounded px-3 py-2">
+        <button onClick={onDone} className="btn-secondary btn-block sm:w-auto">
           Cancel
         </button>
       </div>

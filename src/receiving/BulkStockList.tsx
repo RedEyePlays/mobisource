@@ -31,46 +31,48 @@ export default function BulkStockList() {
   }, [refreshKey])
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold">Bulk stock</h2>
-        <button onClick={() => setRefreshKey((k) => k + 1)} className="border rounded px-3 py-1">
+    <div className="p-4 sm:p-6">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="page-title">Bulk stock</h2>
+        <button onClick={() => setRefreshKey((k) => k + 1)} className="btn-secondary btn-sm">
           Refresh
         </button>
       </div>
 
       {loading ? (
-        <p>Loading…</p>
+        <p className="text-muted">Loading…</p>
       ) : stock.length === 0 ? (
-        <p className="text-gray-500">No bulk stock received yet.</p>
+        <p className="text-muted">No bulk stock received yet.</p>
       ) : (
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b">
-              <th className="py-2 pr-4">SKU</th>
-              <th className="py-2 pr-4">Qty on hand</th>
-              <th className="py-2 pr-4">Avg landed cost</th>
-              <th className="py-2 pr-4">Reorder point</th>
-              <th className="py-2 pr-4"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {stock.map((s) => {
-              const low = s.qtyOnHand <= s.reorderPoint
-              return (
-                <tr key={s.skuCode} className="border-b">
-                  <td className="py-2 pr-4 font-mono text-sm">{s.skuCode}</td>
-                  <td className="py-2 pr-4">{s.qtyOnHand}</td>
-                  <td className="py-2 pr-4">{formatCents(s.avgLandedCost)}</td>
-                  <td className="py-2 pr-4">{s.reorderPoint}</td>
-                  <td className="py-2 pr-4">
-                    {low && <span className="text-red-600 text-sm font-medium">Reorder</span>}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+        <div className="table-wrap">
+          <table className="table-base">
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>Qty on hand</th>
+                <th>Avg landed cost</th>
+                <th>Reorder point</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {stock.map((s) => {
+                const low = s.qtyOnHand <= s.reorderPoint
+                return (
+                  <tr key={s.skuCode}>
+                    <td className="font-mono text-sm">{s.skuCode}</td>
+                    <td>{s.qtyOnHand}</td>
+                    <td className="num-md">{formatCents(s.avgLandedCost)}</td>
+                    <td>{s.reorderPoint}</td>
+                    <td>
+                      {low && <span className="text-danger text-sm font-medium">Reorder</span>}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )

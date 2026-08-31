@@ -101,12 +101,12 @@ export default function SkuForm({ sku, onDone }: { sku: Sku | null; onDone: () =
   }
 
   return (
-    <div className="p-6 max-w-md">
-      <h2 className="text-lg font-semibold mb-4">{isEdit ? `Edit ${sku!.skuCode}` : 'New SKU'}</h2>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        <label className="flex flex-col gap-1">
+    <div className="p-4 sm:p-6 md:mx-auto md:max-w-md">
+      <h2 className="page-title mb-4">{isEdit ? `Edit ${sku!.skuCode}` : 'New SKU'}</h2>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <label className="field">
           Part type
-          <select {...field('partType')} disabled={isEdit} className="border rounded px-3 py-2">
+          <select {...field('partType')} disabled={isEdit} className="select">
             {PART_TYPES.map((p) => (
               <option key={p} value={p}>
                 {p}
@@ -115,14 +115,14 @@ export default function SkuForm({ sku, onDone }: { sku: Sku | null; onDone: () =
           </select>
         </label>
 
-        <label className="flex flex-col gap-1">
+        <label className="field">
           Model
-          <input {...field('model')} disabled={isEdit} className="border rounded px-3 py-2" placeholder="IP14P" required />
+          <input {...field('model')} disabled={isEdit} className="input" placeholder="IP14P" required />
         </label>
 
-        <label className="flex flex-col gap-1">
+        <label className="field">
           Grade
-          <select {...field('grade')} disabled={isEdit} className="border rounded px-3 py-2">
+          <select {...field('grade')} disabled={isEdit} className="select">
             {GRADES.map((g) => (
               <option key={g} value={g}>
                 {g}
@@ -131,9 +131,9 @@ export default function SkuForm({ sku, onDone }: { sku: Sku | null; onDone: () =
           </select>
         </label>
 
-        <label className="flex flex-col gap-1">
+        <label className="field">
           Source
-          <select {...field('source')} disabled={isEdit} className="border rounded px-3 py-2">
+          <select {...field('source')} disabled={isEdit} className="select">
             {SOURCES.map((s) => (
               <option key={s} value={s}>
                 {s}
@@ -142,9 +142,9 @@ export default function SkuForm({ sku, onDone }: { sku: Sku | null; onDone: () =
           </select>
         </label>
 
-        <label className="flex flex-col gap-1">
+        <label className="field">
           Tracking mode
-          <select {...field('trackingMode')} disabled={isEdit} className="border rounded px-3 py-2">
+          <select {...field('trackingMode')} disabled={isEdit} className="select">
             {TRACKING_MODES.map((t) => (
               <option key={t} value={t}>
                 {t}
@@ -154,43 +154,43 @@ export default function SkuForm({ sku, onDone }: { sku: Sku | null; onDone: () =
         </label>
 
         {isEdit && (
-          <p className="text-sm text-gray-500">
+          <p className="text-muted text-sm">
             Part type, model, grade, source, and tracking mode are locked — create a new SKU to change them.
           </p>
         )}
 
-        <label className="flex flex-col gap-1">
+        <label className="field">
           Expected resale
-          <input {...field('expectedResale')} type="number" step="0.01" min="0" className="border rounded px-3 py-2" required />
+          <input {...field('expectedResale')} type="number" step="0.01" min="0" className="input" required />
         </label>
 
-        <label className="flex flex-col gap-1">
+        <label className="field">
           Retail price
-          <input {...field('listPriceRetail')} type="number" step="0.01" min="0" className="border rounded px-3 py-2" required />
+          <input {...field('listPriceRetail')} type="number" step="0.01" min="0" className="input" required />
         </label>
 
-        <label className="flex flex-col gap-1">
+        <label className="field">
           Tier 1 price (1-4 units)
-          <input {...field('listPriceTier1')} type="number" step="0.01" min="0" className="border rounded px-3 py-2" required />
+          <input {...field('listPriceTier1')} type="number" step="0.01" min="0" className="input" required />
         </label>
 
-        <label className="flex flex-col gap-1">
+        <label className="field">
           Tier 2 price (5-19 units)
-          <input {...field('listPriceTier2')} type="number" step="0.01" min="0" className="border rounded px-3 py-2" required />
+          <input {...field('listPriceTier2')} type="number" step="0.01" min="0" className="input" required />
         </label>
 
-        <label className="flex flex-col gap-1">
+        <label className="field">
           Tier 3 price (20+ units)
-          <input {...field('listPriceTier3')} type="number" step="0.01" min="0" className="border rounded px-3 py-2" required />
+          <input {...field('listPriceTier3')} type="number" step="0.01" min="0" className="input" required />
         </label>
 
-        {error && <p className="text-red-600 text-sm">{error}</p>}
+        {error && <p className="text-danger text-sm">{error}</p>}
 
-        <div className="flex gap-2 mt-2">
-          <button type="submit" disabled={submitting} className="bg-black text-white rounded px-3 py-2 disabled:opacity-50">
+        <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+          <button type="submit" disabled={submitting} className="btn-primary sm:flex-1">
             Save
           </button>
-          <button type="button" onClick={onDone} className="border rounded px-3 py-2">
+          <button type="button" onClick={onDone} className="btn-secondary sm:flex-1">
             Cancel
           </button>
         </div>

@@ -71,20 +71,20 @@ export default function ApplyShippingForm({
 
   if (result) {
     return (
-      <div className="p-6 max-w-lg">
-        <h2 className="text-lg font-semibold mb-2">Shipping applied</h2>
+      <div className="mx-auto max-w-lg p-4 sm:p-6">
+        <h2 className="page-title mb-2">Shipping applied</h2>
         <p>
           {receipt.supplier} / {receipt.invoiceRef} landed costs updated.
         </p>
         {result.totalDiscrepancyCAD > 0 ? (
-          <p className="text-yellow-700 mt-2">
+          <div className="banner-warning mt-3">
             {formatCents(result.totalDiscrepancyCAD)} of shipping couldn't be absorbed — those units had already
             sold before this landed, and their recorded cost was left alone. See the receipt for the breakdown.
-          </p>
+          </div>
         ) : (
-          <p className="text-gray-600 mt-2">Every unit was still on hand — no discrepancy.</p>
+          <p className="text-muted mt-2">Every unit was still on hand — no discrepancy.</p>
         )}
-        <button onClick={onDone} className="mt-4 bg-black text-white rounded px-3 py-2">
+        <button onClick={onDone} className="btn-primary mt-4">
           Done
         </button>
       </div>
@@ -92,21 +92,21 @@ export default function ApplyShippingForm({
   }
 
   return (
-    <div className="p-6 max-w-2xl">
-      <button onClick={onBack} className="text-gray-500 mb-2">
+    <div className="mx-auto max-w-2xl p-4 sm:p-6">
+      <button onClick={onBack} className="text-muted mb-2">
         ← Back to pending receipts
       </button>
-      <h2 className="text-lg font-semibold mb-1">
+      <h2 className="page-title mb-1">
         Apply shipping — {receipt.supplier} / {receipt.invoiceRef}
       </h2>
-      <p className="text-gray-600 mb-4">FX rate captured at receiving: {receipt.fxRate}</p>
+      <p className="text-muted mb-4">FX rate captured at receiving: {receipt.fxRate}</p>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <div className="flex gap-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
           <select
             value={shippingCurrency}
             onChange={(e) => setShippingCurrency(e.target.value as PurchaseCurrency)}
-            className="border rounded px-3 py-2"
+            className="select sm:w-auto"
           >
             {CURRENCIES.map((c) => (
               <option key={c} value={c}>
@@ -121,81 +121,80 @@ export default function ApplyShippingForm({
             step="0.01"
             min="0"
             placeholder="Total shipping"
-            className="border rounded px-3 py-2 flex-1"
+            className="input flex-1"
             required
           />
         </div>
 
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b">
-              <th className="py-2 pr-4">SKU</th>
-              <th className="py-2 pr-4">Qty</th>
-              <th className="py-2 pr-4">Unit cost (CAD)</th>
-              <th className="py-2 pr-4">Oversized override</th>
-            </tr>
-          </thead>
-          <tbody>
-            {receipt.lines.map((line) => {
-              const override = overrides[line.skuCode]
-              return (
-                <tr key={line.skuCode} className="border-b">
-                  <td className="py-2 pr-4 font-mono text-sm">{line.skuCode}</td>
-                  <td className="py-2 pr-4">{line.qty}</td>
-                  <td className="py-2 pr-4">{formatCents(line.unitCostCAD)}</td>
-                  <td className="py-2 pr-4">
-                    <label className="flex items-center gap-2 text-sm mb-1">
-                      <input
-                        type="checkbox"
-                        checked={override.oversized}
-                        onChange={(e) => updateOverride(line.skuCode, { oversized: e.target.checked })}
-                      />
-                      Flat per-unit
-                    </label>
-                    {override.oversized && (
-                      <div className="flex gap-1">
-                        <select
-                          value={override.currency}
-                          onChange={(e) =>
-                            updateOverride(line.skuCode, { currency: e.target.value as PurchaseCurrency })
-                          }
-                          className="border rounded px-1 py-1 text-sm"
-                        >
-                          {CURRENCIES.map((c) => (
-                            <option key={c} value={c}>
-                              {c}
-                            </option>
-                          ))}
-                        </select>
+        <div className="table-wrap">
+          <table className="table-base">
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>Qty</th>
+                <th>Unit cost (CAD)</th>
+                <th>Oversized override</th>
+              </tr>
+            </thead>
+            <tbody>
+              {receipt.lines.map((line) => {
+                const override = overrides[line.skuCode]
+                return (
+                  <tr key={line.skuCode}>
+                    <td className="font-mono text-sm">{line.skuCode}</td>
+                    <td>{line.qty}</td>
+                    <td className="num-md">{formatCents(line.unitCostCAD)}</td>
+                    <td>
+                      <label className="mb-1 flex items-center gap-2 text-sm">
                         <input
-                          value={override.amount}
-                          onChange={(e) => updateOverride(line.skuCode, { amount: e.target.value })}
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          className="border rounded px-1 py-1 text-sm w-24"
-                          required={override.oversized}
+                          type="checkbox"
+                          checked={override.oversized}
+                          onChange={(e) => updateOverride(line.skuCode, { oversized: e.target.checked })}
+                          className="checkbox"
                         />
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+                        Flat per-unit
+                      </label>
+                      {override.oversized && (
+                        <div className="flex gap-1">
+                          <select
+                            value={override.currency}
+                            onChange={(e) =>
+                              updateOverride(line.skuCode, { currency: e.target.value as PurchaseCurrency })
+                            }
+                            className="select w-auto min-h-9 py-1 text-sm"
+                          >
+                            {CURRENCIES.map((c) => (
+                              <option key={c} value={c}>
+                                {c}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            value={override.amount}
+                            onChange={(e) => updateOverride(line.skuCode, { amount: e.target.value })}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            className="input min-h-9 w-24 py-1 text-sm"
+                            required={override.oversized}
+                          />
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
 
-        {error && <p className="text-red-600 text-sm">{error}</p>}
+        {error && <p className="text-danger text-sm">{error}</p>}
 
-        <div className="flex gap-2">
-          <button
-            type="submit"
-            disabled={submitting}
-            className="bg-black text-white rounded px-3 py-2 disabled:opacity-50"
-          >
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button type="submit" disabled={submitting} className="btn-primary">
             Apply shipping
           </button>
-          <button type="button" onClick={onBack} className="border rounded px-3 py-2">
+          <button type="button" onClick={onBack} className="btn-secondary">
             Cancel
           </button>
         </div>

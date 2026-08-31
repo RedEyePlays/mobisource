@@ -67,17 +67,17 @@ export default function BuyerForm({ buyer, onDone }: { buyer: Buyer | null; onDo
   }
 
   return (
-    <div className="p-6 max-w-md">
-      <h2 className="text-lg font-semibold mb-4">{isEdit ? `Edit ${buyer!.name}` : 'New buyer'}</h2>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        <label className="flex flex-col gap-1">
+    <div className="p-4 sm:p-6 md:mx-auto md:max-w-md">
+      <h2 className="page-title mb-4">{isEdit ? `Edit ${buyer!.name}` : 'New buyer'}</h2>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <label className="field">
           Name
-          <input {...field('name')} className="border rounded px-3 py-2" required />
+          <input {...field('name')} className="input" required />
         </label>
 
-        <label className="flex flex-col gap-1">
+        <label className="field">
           Type
-          <select {...field('type')} className="border rounded px-3 py-2">
+          <select {...field('type')} className="select">
             {TYPES.map((t) => (
               <option key={t} value={t}>
                 {t}
@@ -86,9 +86,9 @@ export default function BuyerForm({ buyer, onDone }: { buyer: Buyer | null; onDo
           </select>
         </label>
 
-        <label className="flex flex-col gap-1">
+        <label className="field">
           Tier
-          <select {...field('tier')} className="border rounded px-3 py-2">
+          <select {...field('tier')} className="select">
             {TIERS.map((t) => (
               <option key={t} value={t}>
                 {t}
@@ -97,9 +97,9 @@ export default function BuyerForm({ buyer, onDone }: { buyer: Buyer | null; onDo
           </select>
         </label>
 
-        <label className="flex flex-col gap-1">
+        <label className="field">
           Terms
-          <select {...field('terms')} className="border rounded px-3 py-2">
+          <select {...field('terms')} className="select">
             {TERMS.map((t) => (
               <option key={t} value={t}>
                 {t}
@@ -108,18 +108,18 @@ export default function BuyerForm({ buyer, onDone }: { buyer: Buyer | null; onDo
           </select>
         </label>
 
-        <label className="flex flex-col gap-1">
+        <label className="field">
           Contact email
-          <input {...field('email')} type="email" className="border rounded px-3 py-2" />
+          <input {...field('email')} type="email" className="input" />
         </label>
 
-        {error && <p className="text-red-600 text-sm">{error}</p>}
+        {error && <p className="text-danger text-sm">{error}</p>}
 
-        <div className="flex gap-2 mt-2">
-          <button type="submit" disabled={submitting} className="bg-black text-white rounded px-3 py-2 disabled:opacity-50">
+        <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+          <button type="submit" disabled={submitting} className="btn-primary sm:flex-1">
             Save
           </button>
-          <button type="button" onClick={onDone} className="border rounded px-3 py-2">
+          <button type="button" onClick={onDone} className="btn-secondary sm:flex-1">
             Cancel
           </button>
         </div>

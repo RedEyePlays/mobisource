@@ -16,36 +16,42 @@ export default function MarginReport({ stockItems }: { stockItems: StockItem[] }
   return (
     <div>
       {rows.length === 0 ? (
-        <p className="text-gray-500">No stock items yet.</p>
+        <p className="text-muted">No stock items yet.</p>
       ) : (
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b">
-              <th className="py-2 pr-4">SKU</th>
-              <th className="py-2 pr-4">Sold</th>
-              <th className="py-2 pr-4">Still inStock</th>
-              <th className="py-2 pr-4">Revenue</th>
-              <th className="py-2 pr-4">Cost</th>
-              <th className="py-2 pr-4">Margin</th>
-              <th className="py-2 pr-4">Avg margin/unit</th>
-              <th className="py-2 pr-4">Margin %</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.skuCode} className="border-b">
-                <td className="py-2 pr-4 font-mono text-sm">{row.skuCode}</td>
-                <td className="py-2 pr-4">{row.soldCount}</td>
-                <td className="py-2 pr-4">{row.inStockCount}</td>
-                <td className="py-2 pr-4">{formatCents(row.totalRevenue)}</td>
-                <td className="py-2 pr-4">{formatCents(row.totalCost)}</td>
-                <td className="py-2 pr-4 font-medium">{formatCents(row.totalMargin)}</td>
-                <td className="py-2 pr-4">{row.avgMargin == null ? '—' : formatCents(row.avgMargin)}</td>
-                <td className="py-2 pr-4">{formatPct(row.marginPct)}</td>
+        <div className="table-wrap">
+          <table className="table-base">
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>Sold</th>
+                <th>Still inStock</th>
+                <th>Revenue</th>
+                <th>Cost</th>
+                <th>Margin</th>
+                <th>Avg margin/unit</th>
+                <th>Margin %</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.skuCode}>
+                  <td className="font-mono text-sm">{row.skuCode}</td>
+                  <td>{row.soldCount}</td>
+                  <td>{row.inStockCount}</td>
+                  <td>{formatCents(row.totalRevenue)}</td>
+                  <td>{formatCents(row.totalCost)}</td>
+                  <td>
+                    <span className="num-md">{formatCents(row.totalMargin)}</span>
+                  </td>
+                  <td>{row.avgMargin == null ? '—' : formatCents(row.avgMargin)}</td>
+                  <td>
+                    <span className="num-md">{formatPct(row.marginPct)}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )

@@ -18,6 +18,17 @@ import type { Buyer, Sku } from './types'
 type Section = 'inventory' | 'donors' | 'teardown' | 'skus' | 'buyers' | 'orders' | 'receiving' | 'reports'
 type View = 'list' | 'form'
 
+const NAV: { key: Section; label: string }[] = [
+  { key: 'inventory', label: 'Inventory' },
+  { key: 'donors', label: 'Donors' },
+  { key: 'teardown', label: 'Teardown' },
+  { key: 'skus', label: 'SKUs' },
+  { key: 'buyers', label: 'Buyers' },
+  { key: 'orders', label: 'Orders' },
+  { key: 'receiving', label: 'Receiving' },
+  { key: 'reports', label: 'Reports' },
+]
+
 function AppShell() {
   const { loading, user, isStaff } = useAuth()
   const [section, setSection] = useState<Section>('donors')
@@ -34,8 +45,8 @@ function AppShell() {
 
   if (!isStaff) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p>Signed in, but this account isn't authorized for MobiSource.</p>
+      <div className="surface-page flex items-center justify-center p-6 text-center">
+        <p className="text-muted text-base">Signed in, but this account isn't authorized for MobiSource.</p>
       </div>
     )
   }
@@ -47,56 +58,17 @@ function AppShell() {
   }
 
   return (
-    <div>
-      <nav className="flex gap-2 p-4 border-b">
-        <button
-          onClick={() => goToSection('inventory')}
-          className={section === 'inventory' ? 'font-semibold' : 'text-gray-500'}
-        >
-          Inventory
-        </button>
-        <button
-          onClick={() => goToSection('donors')}
-          className={section === 'donors' ? 'font-semibold' : 'text-gray-500'}
-        >
-          Donors
-        </button>
-        <button
-          onClick={() => goToSection('teardown')}
-          className={section === 'teardown' ? 'font-semibold' : 'text-gray-500'}
-        >
-          Teardown
-        </button>
-        <button
-          onClick={() => goToSection('skus')}
-          className={section === 'skus' ? 'font-semibold' : 'text-gray-500'}
-        >
-          SKUs
-        </button>
-        <button
-          onClick={() => goToSection('buyers')}
-          className={section === 'buyers' ? 'font-semibold' : 'text-gray-500'}
-        >
-          Buyers
-        </button>
-        <button
-          onClick={() => goToSection('orders')}
-          className={section === 'orders' ? 'font-semibold' : 'text-gray-500'}
-        >
-          Orders
-        </button>
-        <button
-          onClick={() => goToSection('receiving')}
-          className={section === 'receiving' ? 'font-semibold' : 'text-gray-500'}
-        >
-          Receiving
-        </button>
-        <button
-          onClick={() => goToSection('reports')}
-          className={section === 'reports' ? 'font-semibold' : 'text-gray-500'}
-        >
-          Reports
-        </button>
+    <div className="surface-page">
+      <nav className="sticky top-0 z-10 flex gap-1.5 overflow-x-auto border-b border-slate-200 bg-white/95 px-3 py-2.5 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-950/95">
+        {NAV.map((item) => (
+          <button
+            key={item.key}
+            onClick={() => goToSection(item.key)}
+            className={section === item.key ? 'nav-link-on' : 'nav-link-off'}
+          >
+            {item.label}
+          </button>
+        ))}
       </nav>
 
       {section === 'inventory' && <StockList />}

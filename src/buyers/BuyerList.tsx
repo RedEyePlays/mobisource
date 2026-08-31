@@ -27,14 +27,14 @@ export default function BuyerList({ onCreate, onEdit }: { onCreate: () => void; 
   }, [refreshKey])
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold">Buyers</h2>
-        <div className="flex gap-2">
-          <button onClick={() => setRefreshKey((k) => k + 1)} className="border rounded px-3 py-1">
+    <div className="p-4 sm:p-6">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="page-title">Buyers</h2>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => setRefreshKey((k) => k + 1)} className="btn-secondary btn-sm">
             Refresh
           </button>
-          <button onClick={onCreate} className="bg-black text-white rounded px-3 py-1">
+          <button onClick={onCreate} className="btn-primary btn-sm">
             New buyer
           </button>
         </div>
@@ -43,34 +43,36 @@ export default function BuyerList({ onCreate, onEdit }: { onCreate: () => void; 
       {loading ? (
         <p>Loading…</p>
       ) : buyers.length === 0 ? (
-        <p className="text-gray-500">No buyers yet.</p>
+        <p className="text-muted">No buyers yet.</p>
       ) : (
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b">
-              <th className="py-2 pr-4">Name</th>
-              <th className="py-2 pr-4">Type</th>
-              <th className="py-2 pr-4">Tier</th>
-              <th className="py-2 pr-4">Terms</th>
-              <th className="py-2 pr-4"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {buyers.map((buyer) => (
-              <tr key={buyer.buyerId} className="border-b">
-                <td className="py-2 pr-4">{buyer.name}</td>
-                <td className="py-2 pr-4">{buyer.type}</td>
-                <td className="py-2 pr-4">{buyer.tier}</td>
-                <td className="py-2 pr-4">{buyer.terms}</td>
-                <td className="py-2 pr-4">
-                  <button onClick={() => onEdit(buyer)} className="border rounded px-2 py-1 text-sm">
-                    Edit
-                  </button>
-                </td>
+        <div className="table-wrap">
+          <table className="table-base">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Tier</th>
+                <th>Terms</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {buyers.map((buyer) => (
+                <tr key={buyer.buyerId}>
+                  <td>{buyer.name}</td>
+                  <td>{buyer.type}</td>
+                  <td>{buyer.tier}</td>
+                  <td>{buyer.terms}</td>
+                  <td>
+                    <button onClick={() => onEdit(buyer)} className="btn-secondary btn-sm">
+                      Edit
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )

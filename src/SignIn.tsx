@@ -25,15 +25,16 @@ export default function SignIn() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3 w-72">
-        <h1 className="text-xl font-semibold mb-2">MobiSource</h1>
+    <div className="surface-page flex items-center justify-center p-6">
+      <form onSubmit={handleSubmit} className="flex w-full max-w-sm flex-col gap-4">
+        <h1 className="page-title mb-2 text-center text-2xl">MobiSource</h1>
         <input
           type="email"
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="border rounded px-3 py-2"
+          className="input"
+          autoComplete="username"
           required
         />
         <input
@@ -41,16 +42,13 @@ export default function SignIn() {
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="border rounded px-3 py-2"
+          className="input"
+          autoComplete="current-password"
           required
         />
-        {error && <p className="text-red-600 text-sm">{error}</p>}
-        <button
-          type="submit"
-          disabled={submitting}
-          className="bg-black text-white rounded px-3 py-2 disabled:opacity-50"
-        >
-          Sign in
+        {error && <p className="text-danger text-sm">{error}</p>}
+        <button type="submit" disabled={submitting} className="btn-primary btn-block">
+          {submitting ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
     </div>
