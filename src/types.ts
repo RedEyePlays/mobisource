@@ -116,6 +116,44 @@ export interface BulkStock {
   reorderPoint: number
 }
 
+export type ReceiptShippingStatus = 'included' | 'pending' | 'applied'
+
+export interface BulkReceiptLine {
+  skuCode: string
+  supplierSku: string
+  qty: number
+  unitCostUSD: Cents
+  unitCostCAD: Cents
+  shippingOverrideCurrency: PurchaseCurrency | null
+  shippingOverrideAmount: Cents | null
+  shippingOverrideAmountCAD: Cents | null
+  shippingAllocatedCAD: Cents
+  landedCostCAD: Cents
+  unitsCorrected: number | null
+  discrepancyCAD: Cents | null
+}
+
+export interface BulkReceipt {
+  receiptId: string
+  supplier: string
+  invoiceRef: string
+  fxRate: number
+  receivedAt: Timestamp
+  shippingStatus: ReceiptShippingStatus
+  shippingCurrency: PurchaseCurrency | null
+  shippingTotal: Cents | null
+  shippingTotalCAD: Cents | null
+  shippingAppliedAt: Timestamp | null
+  totalDiscrepancyCAD: Cents
+  lines: BulkReceiptLine[]
+}
+
+export interface SupplierSkuMap {
+  supplier: string
+  supplierSku: string
+  skuCode: string
+}
+
 export interface BuyerContact {
   email?: string
 }
