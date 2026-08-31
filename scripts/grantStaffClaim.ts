@@ -5,7 +5,7 @@
 //
 // Local/emulator use (default, safe):
 //   npm run emulators                              # in one terminal
-//   node scripts/grantStaffClaim.js someone@example.com   # in another
+//   npx tsx scripts/grantStaffClaim.ts someone@example.com   # in another
 //
 // One-time production use: this script refuses to run unless
 // FIREBASE_AUTH_EMULATOR_HOST is set, so it can't be pointed at a real
@@ -14,7 +14,7 @@
 // tool), run it with --production and real credentials:
 //
 //   GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json \
-//     node scripts/grantStaffClaim.js you@example.com --production
+//     npx tsx scripts/grantStaffClaim.ts you@example.com --production
 //
 // The service account needs Firebase Authentication Admin. Prefer doing
 // this exactly once, then building a real staff-onboarding path instead
@@ -27,7 +27,7 @@ const email = process.argv[2]
 const isProduction = process.argv.includes('--production')
 
 if (!email) {
-  console.error('Usage: node scripts/grantStaffClaim.js <email> [--production]')
+  console.error('Usage: npx tsx scripts/grantStaffClaim.ts <email> [--production]')
   process.exit(1)
 }
 

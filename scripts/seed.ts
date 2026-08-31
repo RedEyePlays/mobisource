@@ -1,5 +1,7 @@
 import { initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
+import { cents } from '../functions/src/lib/types.js'
+import type { Donor, Sku, TeardownProfile } from '../functions/src/lib/types.js'
 
 if (!process.env.FIRESTORE_EMULATOR_HOST) {
   console.error(
@@ -13,8 +15,18 @@ if (!process.env.FIRESTORE_EMULATOR_HOST) {
 const app = initializeApp({ projectId: 'demo-mobisource' })
 const db = getFirestore(app)
 
+interface SkuInput {
+  skuCode: string
+  partType: Sku['partType']
+  model: string
+  grade: Sku['grade']
+  source: Sku['source']
+  trackingMode: Sku['trackingMode']
+  expectedResale: number
+}
+
 // Cents. Rough relative values, not a real price list — this is dev/emulator seed data.
-function sku({ skuCode, partType, model, grade, source, trackingMode, expectedResale }) {
+function sku({ skuCode, partType, model, grade, source, trackingMode, expectedResale }: SkuInput): Sku {
   return {
     skuCode,
     partType,
@@ -22,18 +34,18 @@ function sku({ skuCode, partType, model, grade, source, trackingMode, expectedRe
     grade,
     source,
     trackingMode,
-    expectedResale,
-    listPriceRetail: Math.round(expectedResale * 1.3),
-    listPriceTier1: Math.round(expectedResale * 1.2),
-    listPriceTier2: Math.round(expectedResale * 1.1),
-    listPriceTier3: expectedResale,
+    expectedResale: cents(expectedResale),
+    listPriceRetail: cents(Math.round(expectedResale * 1.3)),
+    listPriceTier1: cents(Math.round(expectedResale * 1.2)),
+    listPriceTier2: cents(Math.round(expectedResale * 1.1)),
+    listPriceTier3: cents(expectedResale),
     active: true,
   }
 }
 
 const MODEL = 'IP14P'
 
-const skus = [
+const skus: Sku[] = [
   sku({ skuCode: `MS-SCRN-${MODEL}-A-PULL`, partType: 'SCRN', model: MODEL, grade: 'A', source: 'PULL', trackingMode: 'serialized', expectedResale: 22000 }),
   sku({ skuCode: `MS-SCRN-${MODEL}-B-PULL`, partType: 'SCRN', model: MODEL, grade: 'B', source: 'PULL', trackingMode: 'serialized', expectedResale: 16000 }),
   sku({ skuCode: `MS-SCRN-${MODEL}-N-AFT`, partType: 'SCRN', model: MODEL, grade: 'N', source: 'AFT', trackingMode: 'bulk', expectedResale: 9000 }),
@@ -55,15 +67,14 @@ const skus = [
 
 // All 'intact' — no teardowns or resales exist yet in phase 1, so nothing here
 // should claim a status that depends on collections that don't exist.
-const donors = [
+const donors: Omit<Donor, 'purchaseDate'>[] = [
   {
     model: MODEL,
     imei: '011112223334445',
     imeiBlankReason: '',
-    purchaseCost: 40000,
+    purchaseCost: cents(40000),
     purchaseCurrency: 'CAD',
     fxRateUsed: null,
-    purchaseDate: new Date('2026-08-15'),
     source: 'local',
     supplierRef: 'walk-in-0001',
     condition: 'A',
@@ -78,10 +89,9 @@ const donors = [
     model: MODEL,
     imei: '011112223334446',
     imeiBlankReason: '',
-    purchaseCost: 32000,
+    purchaseCost: cents(32000),
     purchaseCurrency: 'USD',
     fxRateUsed: 1.37,
-    purchaseDate: new Date('2026-08-18'),
     source: 'china',
     supplierRef: 'sz-batch-0042',
     condition: 'C',
@@ -96,10 +106,9 @@ const donors = [
     model: MODEL,
     imei: '',
     imeiBlankReason: 'Dead board — device will not power on, IMEI unreadable.',
-    purchaseCost: 8000,
+    purchaseCost: cents(8000),
     purchaseCurrency: 'CAD',
     fxRateUsed: null,
-    purchaseDate: new Date('2026-08-20'),
     source: 'trade-in',
     supplierRef: '',
     condition: 'D',
@@ -112,7 +121,9 @@ const donors = [
   },
 ]
 
-const teardownProfiles = [
+const donorPurchaseDates = [new Date('2026-08-15'), new Date('2026-08-18'), new Date('2026-08-20')]
+
+const teardownProfiles: TeardownProfile[] = [
   {
     profileId: `${MODEL}-AB`,
     model: MODEL,
@@ -154,7 +165,7 @@ async function seed() {
     batch.set(db.collection('skus').doc(doc.skuCode), doc)
   }
   for (const [i, doc] of donors.entries()) {
-    batch.set(db.collection('donors').doc(`donor-seed-${i + 1}`), doc)
+    batch.set(db.collection('donors').doc(`donor-seed-${i + 1}`), { ...doc, purchaseDate: donorPurchaseDates[i] })
   }
   for (const doc of teardownProfiles) {
     batch.set(db.collection('teardownProfiles').doc(doc.profileId), doc)

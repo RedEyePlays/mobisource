@@ -10,7 +10,7 @@
     "test:unit": "vitest run src functions/src",
     "test:rules": "firebase emulators:exec --only firestore --project demo-mobisource \"vitest run tests/rules\"",
     "test:integration": "firebase emulators:exec --only firestore --project demo-mobisource \"vitest run functions/test\"",
-    "seed:emulator": "firebase emulators:exec --only firestore --project demo-mobisource \"node scripts/seed.js\"",
+    "seed:emulator": "firebase emulators:exec --only firestore --project demo-mobisource \"tsx scripts/seed.ts\"",
     "emulators": "firebase emulators:start --only auth,firestore,functions --project demo-mobisource"
   },
   "dependencies": {
