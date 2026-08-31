@@ -10,9 +10,10 @@ import BuyerForm from './buyers/BuyerForm'
 import OrderList from './orders/OrderList'
 import OrderBuilder from './orders/OrderBuilder'
 import StockList from './inventory/StockList'
+import Reports from './reports/Reports'
 import type { Buyer, Sku } from './types'
 
-type Section = 'inventory' | 'donors' | 'skus' | 'buyers' | 'orders'
+type Section = 'inventory' | 'donors' | 'skus' | 'buyers' | 'orders' | 'reports'
 type View = 'list' | 'form'
 
 function AppShell() {
@@ -76,6 +77,12 @@ function AppShell() {
         >
           Orders
         </button>
+        <button
+          onClick={() => goToSection('reports')}
+          className={section === 'reports' ? 'font-semibold' : 'text-gray-500'}
+        >
+          Reports
+        </button>
       </nav>
 
       {section === 'inventory' && <StockList />}
@@ -117,6 +124,8 @@ function AppShell() {
 
       {section === 'orders' && view === 'list' && <OrderList onCreate={() => setView('form')} />}
       {section === 'orders' && view === 'form' && <OrderBuilder onDone={() => setView('list')} />}
+
+      {section === 'reports' && <Reports />}
     </div>
   )
 }
