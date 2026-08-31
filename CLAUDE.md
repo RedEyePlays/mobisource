@@ -8,7 +8,7 @@ Internal inventory, teardown, and wholesale system for MobiSource (phone parts b
 
 ## Stack
 
-- React + Vite + Tailwind
+- React + Vite + Tailwind, written in TypeScript with `strict: true`
 - Firebase: Firestore, Auth, Cloud Functions, Hosting
 - GitHub for version control, deploy workflow on push to `main`
 
@@ -73,7 +73,7 @@ no stockMovement row is ever mutated
 - Teardown output depends on **model + donor grade**, driven by `teardownProfiles` — never a hardcoded part list
 - Allocation runs only over parts actually harvested and intended for sale (§4)
 - Currency is CAD throughout. USD supplier pricing converts at the internal rate before it enters the system.
-- Store money as integer cents, not floats
+- Store money as integer cents, not floats. In code, money is the branded `Cents` type (see `functions/src/lib/types.ts` and `src/types.ts`), never a bare `number` — this makes it a type error to pass cents where dollars are expected, or vice versa.
 - Timestamps are Firestore `Timestamp`, always UTC
 
 ---
