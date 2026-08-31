@@ -9,14 +9,16 @@ import { afterAll, afterEach, beforeAll, describe, it } from 'vitest'
 
 let testEnv
 
-const BUYER_ID = 'buyer1'
-const BUYER_DOC = {
-  buyerId: BUYER_ID,
-  name: 'Acme Repair',
-  type: 'repairShop',
-  tier: 'preferred',
-  terms: 'net15',
-  contact: { email: 'buying@acme.example' },
+const ORDER_ID = 'order1'
+const ORDER_DOC = {
+  orderId: ORDER_ID,
+  buyerId: 'buyer1',
+  lines: [{ skuCode: 'MS-SCRN-IP14P-A-PULL', itemId: 'item1', qty: 1, unitPrice: 20000, unitCost: 16925 }],
+  subtotal: 20000,
+  tax: 0,
+  total: 20000,
+  status: 'quoted',
+  createdAt: new Date('2026-08-31'),
 }
 
 beforeAll(async () => {
@@ -40,28 +42,28 @@ afterAll(async () => {
   await testEnv.cleanup()
 })
 
-describe('buyers rules', () => {
+describe('salesOrders rules', () => {
   it('denies an unauthenticated read', async () => {
     const db = testEnv.unauthenticatedContext().firestore()
-    await assertFails(getDoc(doc(db, `buyers/${BUYER_ID}`)))
+    await assertFails(getDoc(doc(db, `salesOrders/${ORDER_ID}`)))
   })
 
   it('denies a read from an authenticated non-staff client', async () => {
     const db = testEnv.authenticatedContext('user1').firestore()
-    await assertFails(getDoc(doc(db, `buyers/${BUYER_ID}`)))
+    await assertFails(getDoc(doc(db, `salesOrders/${ORDER_ID}`)))
   })
 
   it('allows a read from an authenticated staff client', async () => {
     await testEnv.withSecurityRulesDisabled(async (ctx) => {
-      await setDoc(doc(ctx.firestore(), `buyers/${BUYER_ID}`), BUYER_DOC)
+      await setDoc(doc(ctx.firestore(), `salesOrders/${ORDER_ID}`), ORDER_DOC)
     })
 
     const db = testEnv.authenticatedContext('staff1', { staff: true }).firestore()
-    await assertSucceeds(getDoc(doc(db, `buyers/${BUYER_ID}`)))
+    await assertSucceeds(getDoc(doc(db, `salesOrders/${ORDER_ID}`)))
   })
 
-  it('denies a write even from staff — buyers are only created/updated through callables', async () => {
+  it('denies a write even from staff — orders are only created/confirmed through callables', async () => {
     const db = testEnv.authenticatedContext('staff1', { staff: true }).firestore()
-    await assertFails(setDoc(doc(db, `buyers/${BUYER_ID}`), BUYER_DOC))
+    await assertFails(setDoc(doc(db, `salesOrders/${ORDER_ID}`), ORDER_DOC))
   })
 })

@@ -30,21 +30,21 @@ afterAll(async () => {
 })
 
 describe('firestore.rules deny-all default', () => {
-  // salesOrders/ has no per-collection rule yet (that lands with its own
+  // bulkStock/ has no per-collection rule yet (that lands with its own
   // phase), so it's a stand-in for "anything not explicitly listed in
   // firestore.rules".
 
   it('denies an unauthenticated client', async () => {
     const db = testEnv.unauthenticatedContext().firestore()
 
-    await assertFails(getDoc(doc(db, 'salesOrders/order1')))
-    await assertFails(setDoc(doc(db, 'salesOrders/order1'), { buyerId: 'buyer1' }))
+    await assertFails(getDoc(doc(db, 'bulkStock/MS-BATT-IP14P-N-AFT')))
+    await assertFails(setDoc(doc(db, 'bulkStock/MS-BATT-IP14P-N-AFT'), { qtyOnHand: 10 }))
   })
 
   it('denies an authenticated staff client with no per-collection rule', async () => {
     const db = testEnv.authenticatedContext('staff1', { staff: true }).firestore()
 
-    await assertFails(getDoc(doc(db, 'salesOrders/order1')))
-    await assertFails(setDoc(doc(db, 'salesOrders/order1'), { buyerId: 'buyer1' }))
+    await assertFails(getDoc(doc(db, 'bulkStock/MS-BATT-IP14P-N-AFT')))
+    await assertFails(setDoc(doc(db, 'bulkStock/MS-BATT-IP14P-N-AFT'), { qtyOnHand: 10 }))
   })
 })

@@ -9,5 +9,10 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    // Rules and integration tests share one Firestore emulator and each
+    // wipes all data in afterEach — running test files in parallel lets
+    // one file's cleanup interfere mid-test with another's. This was
+    // very likely the cause of an earlier "flaky" rules test run too.
+    fileParallelism: false,
   },
 })
