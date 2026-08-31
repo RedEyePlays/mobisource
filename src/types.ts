@@ -160,6 +160,7 @@ export interface BulkReceipt {
   shippingTotalCAD: Cents | null
   shippingAppliedAt: Timestamp | null
   totalDiscrepancyCAD: Cents
+  hstPaidCAD: Cents
   lines: BulkReceiptLine[]
 }
 
@@ -275,4 +276,13 @@ export interface StockMovement {
   ref: string
   brand: MovementBrand
   note: string
+}
+
+export interface Expense {
+  expenseId: string
+  date: Timestamp
+  description: string
+  amount: Cents
+  hstPaidCAD: Cents
+  createdAt: Timestamp
 }

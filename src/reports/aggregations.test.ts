@@ -5,6 +5,7 @@ import {
   agingBuckets,
   buyerRevenue,
   donorRoiByModel,
+  hstRemittanceReport,
   marginBySku,
   salesSummaryByPaymentMethod,
   yieldRateByModel,
@@ -13,6 +14,8 @@ import type {
   AdjustmentMovementInput,
   BuyerInput,
   DonorRoiInput,
+  PurchaseHstInput,
+  SalesOrderForRemittance,
   SalesOrderForRevenue,
   SalesOrderForSummary,
   SkuModelInput,
@@ -455,6 +458,79 @@ describe('salesSummaryByPaymentMethod', () => {
       RANGE,
     )
     expect(report.grandTotal.orderCount).toBe(1)
+  })
+})
+
+describe('hstRemittanceReport', () => {
+  // Local-calendar dates (not UTC ISO strings) so monthKey/quarterKey's use
+  // of local date fields lines up with what these tests construct,
+  // regardless of the timezone the test runner happens to be in.
+  const order = (overrides: Partial<SalesOrderForRemittance> = {}): SalesOrderForRemittance => ({
+    status: 'confirmed',
+    confirmedAt: fakeTimestamp(new Date(2026, 7, 15)), // Aug 15, 2026
+    tax: cents(1300),
+    ...overrides,
+  })
+  const purchase = (overrides: Partial<PurchaseHstInput> = {}): PurchaseHstInput => ({
+    at: fakeTimestamp(new Date(2026, 7, 10)), // Aug 10, 2026
+    hstPaidCAD: cents(400),
+    ...overrides,
+  })
+
+  it('nets HST collected against HST paid for the month and quarter containing both', () => {
+    const report = hstRemittanceReport([order()], [purchase()])
+    expect(report.byMonth).toEqual([{ period: '2026-08', hstCollected: 1300, hstPaid: 400, netOwing: 900 }])
+    expect(report.byQuarter).toEqual([{ period: '2026-Q3', hstCollected: 1300, hstPaid: 400, netOwing: 900 }])
+  })
+
+  it('excludes a quoted order — no tax was ever actually collected', () => {
+    const report = hstRemittanceReport([order({ status: 'quoted', confirmedAt: null })], [])
+    expect(report.byMonth).toEqual([])
+  })
+
+  it('counts shipped and paid the same as confirmed', () => {
+    const report = hstRemittanceReport([order({ status: 'shipped' }), order({ status: 'paid' })], [])
+    expect(report.byMonth[0].hstCollected).toBe(2600)
+  })
+
+  it('separates collected-only and paid-only periods when they fall in different months', () => {
+    const report = hstRemittanceReport(
+      [order({ confirmedAt: fakeTimestamp(new Date(2026, 7, 15)) })], // August
+      [purchase({ at: fakeTimestamp(new Date(2026, 8, 5)) })], // September
+    )
+    const aug = report.byMonth.find((r) => r.period === '2026-08')!
+    const sep = report.byMonth.find((r) => r.period === '2026-09')!
+    expect(aug).toEqual({ period: '2026-08', hstCollected: 1300, hstPaid: 0, netOwing: 1300 })
+    expect(sep).toEqual({ period: '2026-09', hstCollected: 0, hstPaid: 400, netOwing: -400 })
+  })
+
+  it('rolls July/August/September all into Q3, even though they are different months', () => {
+    const report = hstRemittanceReport(
+      [
+        order({ confirmedAt: fakeTimestamp(new Date(2026, 6, 1)), tax: cents(100) }), // July
+        order({ confirmedAt: fakeTimestamp(new Date(2026, 7, 1)), tax: cents(200) }), // August
+        order({ confirmedAt: fakeTimestamp(new Date(2026, 8, 1)), tax: cents(300) }), // September
+      ],
+      [],
+    )
+    expect(report.byMonth).toHaveLength(3)
+    expect(report.byQuarter).toEqual([{ period: '2026-Q3', hstCollected: 600, hstPaid: 0, netOwing: 600 }])
+  })
+
+  it('sorts periods chronologically', () => {
+    const report = hstRemittanceReport(
+      [
+        order({ confirmedAt: fakeTimestamp(new Date(2027, 0, 1)) }), // Jan 2027
+        order({ confirmedAt: fakeTimestamp(new Date(2026, 0, 1)) }), // Jan 2026
+        order({ confirmedAt: fakeTimestamp(new Date(2026, 11, 1)) }), // Dec 2026
+      ],
+      [],
+    )
+    expect(report.byMonth.map((r) => r.period)).toEqual(['2026-01', '2026-12', '2027-01'])
+  })
+
+  it('returns an empty report when there is nothing to remit', () => {
+    expect(hstRemittanceReport([], [])).toEqual({ byMonth: [], byQuarter: [] })
   })
 })
 

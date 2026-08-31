@@ -160,6 +160,10 @@ shippingTotalCAD   number    cents, null while pending
 shippingAppliedAt  timestamp null unless shippingStatus was ever 'pending'
 totalDiscrepancyCAD number   cents, see §7 — 0 unless a late shipping
                               application left some cost unabsorbed
+hstPaidCAD         number    cents — HST actually paid on this shipment, an
+                              input tax credit (§17); 0 for most overseas
+                              aftermarket imports. Entered once at receiving
+                              time, never derived from unitCostCAD.
 lines              array     [{ skuCode, supplierSku, qty, unitCostUSD,
                                 unitCostCAD, shippingOverrideCurrency,
                                 shippingOverrideAmount,
@@ -185,6 +189,21 @@ Doc ID is a deterministic slug of `{supplier}__{supplierSku}` (see §7) —
 suppliers send their own part numbers, but `bulkStock` and
 `stockMovements` always record our `skuCode`; the supplier code is
 reference only.
+
+### `expenses` — a recorded business expense (§17)
+
+```
+expenseId     string
+date          timestamp when incurred — user-supplied, like donors.purchaseDate
+description   string
+amount        number    cents, CAD, total paid, tax included
+hstPaidCAD    number    cents — the HST portion of amount; 0 if none was charged
+createdAt     timestamp
+```
+
+Auto-id, create-only — no update/delete path was asked for; a mistaken
+entry gets a correcting entry, same reasoning as the append-only ledger.
+The other source of input tax credits alongside `bulkReceipts.hstPaidCAD`.
 
 ### `teardowns` — the event that converts a donor into parts
 
@@ -992,3 +1011,32 @@ shape regardless of what happened in the range.
 
 Grouped by `confirmedAt`, inclusive of both ends of the picked range —
 see §3's note on why that's the field, not `createdAt`.
+
+---
+
+## 17. HST remittance report
+
+`Reports` → HST remittance. What's owed to the CRA for a period:
+
+```
+HST collected   Σ tax across realized orders (confirmed/shipped/paid),
+                grouped by confirmedAt
+HST paid        Σ bulkReceipts.hstPaidCAD + Σ expenses.hstPaidCAD, grouped
+                by their own date (receivedAt / expenses.date) — the
+                input tax credits
+net owing       collected − paid (negative means a refund is owed instead)
+```
+
+Broken down **by month and by quarter**, since the business may file
+either way — both are computed from the same source data, not one derived
+from the other. Periods are keyed by *local* calendar (not UTC): this
+report is read by someone filing in their own timezone, and a late-night
+sale shouldn't land in the wrong month just because UTC has already
+rolled over.
+
+Two sources feed "HST paid": `bulkReceipts.hstPaidCAD` (§3, §7) for
+supplier shipments, and the new `expenses` collection (§3) for anything
+else — rent, utilities, supplies. Neither is derived from cost fields
+already on those docs (e.g. `unitCostCAD`) — tax treatment isn't
+recoverable from a landed cost alone, so both are entered explicitly at
+receiving/recording time and default to 0.

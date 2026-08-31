@@ -52,6 +52,8 @@ export interface ReceiveBulkShipmentInput {
   /** Null means shipping isn't known yet — post now, apply it later via applyReceiptShipping. */
   shipping?: ReceiveShippingInput | null
   lines?: unknown
+  /** HST actually paid on this shipment, in CAD cents — an input tax credit (docs/SCHEMA.md §17). Optional; defaults to 0 (most overseas aftermarket imports have none). */
+  hstPaidCAD?: unknown
 }
 
 // ---------------------------------------------------------------------------
@@ -82,6 +84,7 @@ interface ParsedInput {
   fxRate: number
   shipping: ParsedShipping | null
   lines: ParsedLine[]
+  hstPaidCAD: Cents
 }
 
 function parseCurrencyAmount(raw: ReceiveShippingInput | ReceiveOverrideInput, amountField: string, label: string): ParsedOverride {
@@ -142,12 +145,17 @@ function parseInput(input: ReceiveBulkShipmentInput): ParsedInput {
 
   const shipping = input.shipping ? parseCurrencyAmount(input.shipping, 'total', 'shipping') : null
 
+  if (input.hstPaidCAD != null && (!Number.isInteger(input.hstPaidCAD) || (input.hstPaidCAD as number) < 0)) {
+    throw new Error('hstPaidCAD must be a non-negative integer (cents).')
+  }
+
   return {
     supplier: input.supplier,
     invoiceRef: input.invoiceRef,
     fxRate: input.fxRate,
     shipping: shipping ? { currency: shipping.currency, total: shipping.amount } : null,
     lines,
+    hstPaidCAD: cents((input.hstPaidCAD as number) ?? 0),
   }
 }
 
@@ -168,7 +176,7 @@ export async function receiveBulkShipment(
   db: Firestore,
   rawInput: ReceiveBulkShipmentInput,
 ): Promise<{ receiptId: string }> {
-  const { supplier, invoiceRef, fxRate, shipping, lines } = parseInput(rawInput)
+  const { supplier, invoiceRef, fxRate, shipping, lines, hstPaidCAD } = parseInput(rawInput)
 
   const receiptRef = db.collection('bulkReceipts').doc()
 
@@ -295,6 +303,7 @@ export async function receiveBulkShipment(
       shippingTotalCAD,
       shippingAppliedAt: null,
       totalDiscrepancyCAD: cents(0),
+      hstPaidCAD,
       lines: receiptLines,
     }
     tx.set(receiptRef, receipt)

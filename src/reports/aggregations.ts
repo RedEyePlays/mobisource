@@ -463,6 +463,96 @@ export function salesSummaryByPaymentMethod(
 }
 
 // ---------------------------------------------------------------------------
+// HST remittance report — docs/SCHEMA.md §17. What's owed to the CRA for a
+// period: HST collected on realized sales, minus HST paid on purchases
+// (input tax credits) from bulk receipts and recorded expenses. Broken down
+// by both month and quarter, since a business can file either way.
+//
+// Period keys use the *local* calendar (not UTC) — this report is read by
+// someone filing in their own timezone, and a sale confirmed late at night
+// shouldn't fall into the wrong month just because UTC has already rolled
+// over to the next day.
+// ---------------------------------------------------------------------------
+
+export interface SalesOrderForRemittance {
+  status: SalesOrderStatus
+  confirmedAt: TimestampLike | null
+  tax: Cents
+}
+
+export interface PurchaseHstInput {
+  at: TimestampLike
+  hstPaidCAD: Cents
+}
+
+export interface RemittancePeriodRow {
+  period: string
+  hstCollected: Cents
+  hstPaid: Cents
+  netOwing: Cents
+}
+
+export interface HstRemittanceReport {
+  byMonth: RemittancePeriodRow[]
+  byQuarter: RemittancePeriodRow[]
+}
+
+function monthKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+}
+
+function quarterKey(date: Date): string {
+  const quarter = Math.floor(date.getMonth() / 3) + 1
+  return `${date.getFullYear()}-Q${quarter}`
+}
+
+interface PeriodTotals {
+  collected: number
+  paid: number
+}
+
+function bumpPeriod(totals: Map<string, PeriodTotals>, key: string, field: keyof PeriodTotals, amount: number): void {
+  const t = totals.get(key) ?? { collected: 0, paid: 0 }
+  t[field] += amount
+  totals.set(key, t)
+}
+
+function periodRows(totals: Map<string, PeriodTotals>): RemittancePeriodRow[] {
+  return Array.from(totals.entries())
+    .map(([period, t]) => ({
+      period,
+      hstCollected: cents(t.collected),
+      hstPaid: cents(t.paid),
+      netOwing: cents(t.collected - t.paid),
+    }))
+    .sort((a, b) => a.period.localeCompare(b.period))
+}
+
+export function hstRemittanceReport(
+  sales: SalesOrderForRemittance[],
+  purchases: PurchaseHstInput[],
+): HstRemittanceReport {
+  const byMonthTotals = new Map<string, PeriodTotals>()
+  const byQuarterTotals = new Map<string, PeriodTotals>()
+
+  for (const order of sales) {
+    if (!(REALIZED_ORDER_STATUSES as readonly string[]).includes(order.status)) continue
+    if (!order.confirmedAt) continue
+    const date = order.confirmedAt.toDate()
+    bumpPeriod(byMonthTotals, monthKey(date), 'collected', order.tax)
+    bumpPeriod(byQuarterTotals, quarterKey(date), 'collected', order.tax)
+  }
+
+  for (const purchase of purchases) {
+    const date = purchase.at.toDate()
+    bumpPeriod(byMonthTotals, monthKey(date), 'paid', purchase.hstPaidCAD)
+    bumpPeriod(byQuarterTotals, quarterKey(date), 'paid', purchase.hstPaidCAD)
+  }
+
+  return { byMonth: periodRows(byMonthTotals), byQuarter: periodRows(byQuarterTotals) }
+}
+
+// ---------------------------------------------------------------------------
 // Adjustments report — docs/SCHEMA.md §15. Every stock correction (a
 // cycle-count variance or a single-item status fix, adjustStock.ts) writes
 // an 'adjust' stockMovements row; this just orders them for display —

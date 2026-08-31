@@ -48,6 +48,7 @@ export default function BulkReceiveForm({ onDone }: { onDone: () => void }) {
   const [shippingKnown, setShippingKnown] = useState(true)
   const [shippingCurrency, setShippingCurrency] = useState<PurchaseCurrency>('CAD')
   const [shippingTotal, setShippingTotal] = useState('')
+  const [hstPaid, setHstPaid] = useState('')
   const [lines, setLines] = useState<LineState[]>([newLine(0)])
   const [nextKey, setNextKey] = useState(1)
   const [activeSkus, setActiveSkus] = useState<Sku[] | null>(null)
@@ -134,6 +135,7 @@ export default function BulkReceiveForm({ onDone }: { onDone: () => void }) {
         shipping: shippingKnown
           ? { currency: shippingCurrency, total: dollarsToCents(shippingTotal) }
           : null,
+        hstPaidCAD: hstPaid ? dollarsToCents(hstPaid) : 0,
         lines: lines.map((l) => ({
           supplierSku: l.supplierSku,
           skuCode: l.skuCode,
@@ -225,6 +227,19 @@ export default function BulkReceiveForm({ onDone }: { onDone: () => void }) {
             </div>
           )}
         </div>
+
+        <label className="field">
+          HST paid on this shipment (CAD, if any)
+          <input
+            value={hstPaid}
+            onChange={(e) => setHstPaid(e.target.value)}
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="0.00"
+            className="input"
+          />
+        </label>
 
         <div className="flex flex-col gap-3">
           <p className="section-title">Lines</p>

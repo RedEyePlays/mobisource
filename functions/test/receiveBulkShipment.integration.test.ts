@@ -63,6 +63,7 @@ describe('receiveBulkShipment', () => {
     expect(receipt.shippingCurrency).toBe('USD')
     expect(receipt.shippingTotal).toBe(10000)
     expect(receipt.shippingTotalCAD).toBe(13500) // 10000 * 1.35
+    expect(receipt.hstPaidCAD).toBe(0) // defaults to 0 when not supplied
 
     // Shipping splits evenly per unit across all 15 units: 13500/15 = 900/unit.
     const scrnLine = receipt.lines.find((l: { skuCode: string }) => l.skuCode === SCRN_AFT)
@@ -220,5 +221,36 @@ describe('receiveBulkShipment', () => {
         ],
       }),
     ).rejects.toThrow(/Duplicate skuCode/)
+  })
+
+  it('records hstPaidCAD on the receipt when supplied', async () => {
+    await seedSku(SCRN_AFT)
+
+    const result = await receiveBulkShipment(db, {
+      supplier: 'Domestic Supplier',
+      invoiceRef: 'INV-1009',
+      fxRate: 1.0,
+      shipping: null,
+      lines: [{ supplierSku: 'DS-SCRN-1', skuCode: SCRN_AFT, qty: 10, unitCostUSD: 5000 }],
+      hstPaidCAD: 6500,
+    })
+
+    const receipt = (await db.collection('bulkReceipts').doc(result.receiptId).get()).data()!
+    expect(receipt.hstPaidCAD).toBe(6500)
+  })
+
+  it('rejects a negative hstPaidCAD', async () => {
+    await seedSku(SCRN_AFT)
+
+    await expect(
+      receiveBulkShipment(db, {
+        supplier: 'Acme Parts',
+        invoiceRef: 'INV-1010',
+        fxRate: 1.0,
+        shipping: null,
+        lines: [{ supplierSku: 'AC-SCRN-1', skuCode: SCRN_AFT, qty: 1, unitCostUSD: 1000 }],
+        hstPaidCAD: -1,
+      }),
+    ).rejects.toThrow(/hstPaidCAD/)
   })
 })

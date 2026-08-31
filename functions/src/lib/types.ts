@@ -311,6 +311,8 @@ export interface BulkReceipt {
   shippingAppliedAt: Timestamp | null
   /** Σ lines[].discrepancyCAD — shipping cost from a late application that landed on already-sold units and was never absorbed. 0 unless that's happened. */
   totalDiscrepancyCAD: Cents
+  /** HST actually paid on this shipment, in CAD — an input tax credit (docs/SCHEMA.md §17). 0 when none was charged (most overseas aftermarket imports); entered once at receiving time, never recomputed from unitCostCAD, since tax treatment isn't derivable from the landed cost alone. */
+  hstPaidCAD: Cents
   lines: BulkReceiptLine[]
 }
 
@@ -464,4 +466,17 @@ export interface CreditNote {
 /** `counters/creditNotes` — same shape and guarantee as InvoiceCounter, but its own independent sequence. */
 export interface CreditNoteCounter {
   last: number
+}
+
+/** `expenses/{expenseId}` (docs/SCHEMA.md §17) — a recorded business expense with HST paid, the other source of input tax credits alongside bulkReceipts.hstPaidCAD. Auto-id, create-only — no update/delete path was asked for; a mistaken entry needs a correcting entry, same reasoning as an append-only ledger. */
+export interface Expense {
+  expenseId: string
+  /** When the expense was incurred — user-supplied (like donors.purchaseDate), since it's normally recorded some time after the fact. */
+  date: Timestamp
+  description: string
+  /** Total paid, in CAD cents, tax included. */
+  amount: Cents
+  /** The HST portion of `amount` — 0 if none was charged. */
+  hstPaidCAD: Cents
+  createdAt: Timestamp
 }
