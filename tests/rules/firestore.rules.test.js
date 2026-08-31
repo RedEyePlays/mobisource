@@ -30,17 +30,20 @@ afterAll(async () => {
 })
 
 describe('firestore.rules deny-all default', () => {
+  // buyers/ has no per-collection rule yet (that lands with its own phase),
+  // so it's a stand-in for "anything not explicitly listed in firestore.rules".
+
   it('denies an unauthenticated client', async () => {
     const db = testEnv.unauthenticatedContext().firestore()
 
-    await assertFails(getDoc(doc(db, 'donors/donor1')))
-    await assertFails(setDoc(doc(db, 'donors/donor1'), { model: 'iPhone 12' }))
+    await assertFails(getDoc(doc(db, 'buyers/buyer1')))
+    await assertFails(setDoc(doc(db, 'buyers/buyer1'), { name: 'Acme Repair' }))
   })
 
-  it('denies an authenticated client with no per-collection rule', async () => {
-    const db = testEnv.authenticatedContext('user1').firestore()
+  it('denies an authenticated staff client with no per-collection rule', async () => {
+    const db = testEnv.authenticatedContext('staff1', { staff: true }).firestore()
 
-    await assertFails(getDoc(doc(db, 'donors/donor1')))
-    await assertFails(setDoc(doc(db, 'donors/donor1'), { model: 'iPhone 12' }))
+    await assertFails(getDoc(doc(db, 'buyers/buyer1')))
+    await assertFails(setDoc(doc(db, 'buyers/buyer1'), { name: 'Acme Repair' }))
   })
 })
