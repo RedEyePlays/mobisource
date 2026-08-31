@@ -1,16 +1,26 @@
 import { useState } from 'react'
+import type { ChangeEvent, FormEvent } from 'react'
 import { httpsCallable } from 'firebase/functions'
-import { functions } from '../firebase.js'
+import { functions } from '../firebase'
+import type { Buyer, BuyerTerms, BuyerTier, BuyerType } from '../types'
 
-const TYPES = ['repairShop', 'broker', 'exporter', 'retail']
-const TIERS = ['standard', 'preferred', 'partner']
-const TERMS = ['prepay', 'net7', 'net15']
+const TYPES: readonly BuyerType[] = ['repairShop', 'broker', 'exporter', 'retail']
+const TIERS: readonly BuyerTier[] = ['standard', 'preferred', 'partner']
+const TERMS: readonly BuyerTerms[] = ['prepay', 'net7', 'net15']
+
+interface BuyerFormState {
+  name: string
+  type: BuyerType
+  tier: BuyerTier
+  terms: BuyerTerms
+  email: string
+}
 
 // buyer: null for create, or an existing buyer doc's data for edit.
-export default function BuyerForm({ buyer, onDone }) {
+export default function BuyerForm({ buyer, onDone }: { buyer: Buyer | null; onDone: () => void }) {
   const isEdit = Boolean(buyer)
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<BuyerFormState>({
     name: buyer?.name ?? '',
     type: buyer?.type ?? TYPES[0],
     tier: buyer?.tier ?? TIERS[0],
@@ -20,14 +30,15 @@ export default function BuyerForm({ buyer, onDone }) {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  function field(name) {
+  function field<K extends keyof BuyerFormState>(name: K) {
     return {
       value: form[name],
-      onChange: (e) => setForm((f) => ({ ...f, [name]: e.target.value })),
+      onChange: (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+        setForm((f) => ({ ...f, [name]: e.target.value as BuyerFormState[K] })),
     }
   }
 
-  async function handleSubmit(event) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError('')
     setSubmitting(true)
@@ -40,7 +51,7 @@ export default function BuyerForm({ buyer, onDone }) {
         contact: form.email ? { email: form.email } : {},
       }
 
-      if (isEdit) {
+      if (isEdit && buyer) {
         const updateBuyer = httpsCallable(functions, 'updateBuyer')
         await updateBuyer({ buyerId: buyer.buyerId, ...payload })
       } else {
@@ -49,7 +60,7 @@ export default function BuyerForm({ buyer, onDone }) {
       }
       onDone()
     } catch (err) {
-      setError(err.message)
+      setError((err as Error).message)
     } finally {
       setSubmitting(false)
     }
@@ -57,7 +68,7 @@ export default function BuyerForm({ buyer, onDone }) {
 
   return (
     <div className="p-6 max-w-md">
-      <h2 className="text-lg font-semibold mb-4">{isEdit ? `Edit ${buyer.name}` : 'New buyer'}</h2>
+      <h2 className="text-lg font-semibold mb-4">{isEdit ? `Edit ${buyer!.name}` : 'New buyer'}</h2>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <label className="flex flex-col gap-1">
           Name

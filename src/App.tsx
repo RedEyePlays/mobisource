@@ -1,21 +1,25 @@
 import { useState } from 'react'
-import { AuthProvider, useAuth } from './AuthContext.jsx'
-import SignIn from './SignIn.jsx'
-import DonorList from './donors/DonorList.jsx'
-import DonorForm from './donors/DonorForm.jsx'
-import SkuList from './skus/SkuList.jsx'
-import SkuForm from './skus/SkuForm.jsx'
-import BuyerList from './buyers/BuyerList.jsx'
-import BuyerForm from './buyers/BuyerForm.jsx'
-import OrderList from './orders/OrderList.jsx'
-import OrderBuilder from './orders/OrderBuilder.jsx'
-import StockList from './inventory/StockList.jsx'
+import { AuthProvider, useAuth } from './AuthContext'
+import SignIn from './SignIn'
+import DonorList from './donors/DonorList'
+import DonorForm from './donors/DonorForm'
+import SkuList from './skus/SkuList'
+import SkuForm from './skus/SkuForm'
+import BuyerList from './buyers/BuyerList'
+import BuyerForm from './buyers/BuyerForm'
+import OrderList from './orders/OrderList'
+import OrderBuilder from './orders/OrderBuilder'
+import StockList from './inventory/StockList'
+import type { Buyer, Sku } from './types'
+
+type Section = 'inventory' | 'donors' | 'skus' | 'buyers' | 'orders'
+type View = 'list' | 'form'
 
 function AppShell() {
   const { loading, user, isStaff } = useAuth()
-  const [section, setSection] = useState('donors')
-  const [view, setView] = useState('list')
-  const [editingRecord, setEditingRecord] = useState(null)
+  const [section, setSection] = useState<Section>('donors')
+  const [view, setView] = useState<View>('list')
+  const [editingRecord, setEditingRecord] = useState<Sku | Buyer | null>(null)
 
   if (loading) {
     return null
@@ -33,7 +37,7 @@ function AppShell() {
     )
   }
 
-  function goToSection(next) {
+  function goToSection(next: Section) {
     setSection(next)
     setView('list')
     setEditingRecord(null)
@@ -91,7 +95,9 @@ function AppShell() {
           }}
         />
       )}
-      {section === 'skus' && view === 'form' && <SkuForm sku={editingRecord} onDone={() => setView('list')} />}
+      {section === 'skus' && view === 'form' && (
+        <SkuForm sku={editingRecord as Sku | null} onDone={() => setView('list')} />
+      )}
 
       {section === 'buyers' && view === 'list' && (
         <BuyerList
@@ -106,7 +112,7 @@ function AppShell() {
         />
       )}
       {section === 'buyers' && view === 'form' && (
-        <BuyerForm buyer={editingRecord} onDone={() => setView('list')} />
+        <BuyerForm buyer={editingRecord as Buyer | null} onDone={() => setView('list')} />
       )}
 
       {section === 'orders' && view === 'list' && <OrderList onCreate={() => setView('form')} />}

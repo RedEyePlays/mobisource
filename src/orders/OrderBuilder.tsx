@@ -1,18 +1,34 @@
 import { useEffect, useState } from 'react'
 import { collection, getDocs, query, where } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
-import { db, functions } from '../firebase.js'
+import { db, functions } from '../firebase'
+import type { Buyer, Cents, OrderLine, StockItem } from '../types'
 
-function formatCents(cents) {
+function formatCents(cents: Cents) {
   return `$${(cents / 100).toFixed(2)}`
 }
 
-export default function OrderBuilder({ onDone }) {
-  const [buyers, setBuyers] = useState([])
-  const [items, setItems] = useState([])
+interface CreateOrderResult {
+  orderId: string
+  subtotal: Cents
+  tax: Cents
+  total: Cents
+  lines: OrderLine[]
+}
+
+interface ConfirmOrderResult {
+  orderId: string
+  status: string
+}
+
+type StockItemRow = StockItem & { id: string }
+
+export default function OrderBuilder({ onDone }: { onDone: () => void }) {
+  const [buyers, setBuyers] = useState<Buyer[]>([])
+  const [items, setItems] = useState<StockItemRow[]>([])
   const [buyerId, setBuyerId] = useState('')
-  const [selectedItemIds, setSelectedItemIds] = useState([])
-  const [quote, setQuote] = useState(null)
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([])
+  const [quote, setQuote] = useState<CreateOrderResult | null>(null)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -22,13 +38,13 @@ export default function OrderBuilder({ onDone }) {
         getDocs(collection(db, 'buyers')),
         getDocs(query(collection(db, 'stockItems'), where('status', '==', 'inStock'))),
       ])
-      setBuyers(buyersSnap.docs.map((d) => d.data()))
-      setItems(itemsSnap.docs.map((d) => ({ id: d.id, ...d.data() })))
+      setBuyers(buyersSnap.docs.map((d) => d.data() as Buyer))
+      setItems(itemsSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as StockItemRow))
     }
     load()
   }, [])
 
-  function toggleItem(itemId) {
+  function toggleItem(itemId: string) {
     setSelectedItemIds((ids) => (ids.includes(itemId) ? ids.filter((id) => id !== itemId) : [...ids, itemId]))
   }
 
@@ -36,11 +52,14 @@ export default function OrderBuilder({ onDone }) {
     setError('')
     setSubmitting(true)
     try {
-      const createOrder = httpsCallable(functions, 'createOrder')
+      const createOrder = httpsCallable<{ buyerId: string; itemIds: string[] }, CreateOrderResult>(
+        functions,
+        'createOrder',
+      )
       const result = await createOrder({ buyerId, itemIds: selectedItemIds })
       setQuote(result.data)
     } catch (err) {
-      setError(err.message)
+      setError((err as Error).message)
     } finally {
       setSubmitting(false)
     }
@@ -50,11 +69,11 @@ export default function OrderBuilder({ onDone }) {
     setError('')
     setSubmitting(true)
     try {
-      const confirmOrder = httpsCallable(functions, 'confirmOrder')
-      await confirmOrder({ orderId: quote.orderId })
+      const confirmOrder = httpsCallable<{ orderId: string }, ConfirmOrderResult>(functions, 'confirmOrder')
+      await confirmOrder({ orderId: quote!.orderId })
       onDone()
     } catch (err) {
-      setError(err.message)
+      setError((err as Error).message)
     } finally {
       setSubmitting(false)
     }
@@ -86,7 +105,7 @@ export default function OrderBuilder({ onDone }) {
         <p>Subtotal: {formatCents(quote.subtotal)}</p>
         <p>Tax: {formatCents(quote.tax)}</p>
         <p className="font-semibold">Total: {formatCents(quote.total)}</p>
-        <p className="text-gray-500 text-sm mb-4">Margin: {formatCents(margin)}</p>
+        <p className="text-gray-500 text-sm mb-4">Margin: {formatCents(margin as Cents)}</p>
 
         {error && <p className="text-red-600 text-sm">{error}</p>}
 

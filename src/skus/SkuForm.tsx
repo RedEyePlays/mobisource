@@ -1,33 +1,48 @@
 import { useState } from 'react'
+import type { ChangeEvent, FormEvent } from 'react'
 import { httpsCallable } from 'firebase/functions'
-import { functions } from '../firebase.js'
+import { functions } from '../firebase'
+import type { Grade, PartType, Sku, Source, TrackingMode } from '../types'
 
-// Mirrors functions/src/lib/generateSkuCode.js's enums (docs/SCHEMA.md §1).
+// Mirrors functions/src/lib/generateSkuCode.ts's enums (docs/SCHEMA.md §1).
 // Not imported directly — the frontend bundle and the functions codebase
 // are deployed independently, and this list is small enough to duplicate
 // rather than reach across that boundary.
-const PART_TYPES = [
+const PART_TYPES: readonly PartType[] = [
   'SCRN', 'LOGIC', 'HOUSASM', 'HOUS', 'BGLS', 'BATT', 'CAMR', 'CAMF',
   'CHRG', 'NFC', 'SPKR', 'EARP', 'PROX', 'FLSH', 'TAPT',
 ]
-const GRADES = ['A', 'B', 'C', 'N']
-const SOURCES = ['PULL', 'AFT', 'OEM']
-const TRACKING_MODES = ['serialized', 'bulk']
+const GRADES: readonly Grade[] = ['A', 'B', 'C', 'N']
+const SOURCES: readonly Source[] = ['PULL', 'AFT', 'OEM']
+const TRACKING_MODES: readonly TrackingMode[] = ['serialized', 'bulk']
 
-function centsToDollarsString(cents) {
+function centsToDollarsString(cents: number | undefined) {
   return cents == null ? '' : (cents / 100).toFixed(2)
 }
 
-function dollarsStringToCents(value) {
+function dollarsStringToCents(value: string) {
   return Math.round(Number(value) * 100)
+}
+
+interface SkuFormState {
+  partType: PartType
+  model: string
+  grade: Grade
+  source: Source
+  trackingMode: TrackingMode
+  listPriceRetail: string
+  listPriceTier1: string
+  listPriceTier2: string
+  listPriceTier3: string
+  expectedResale: string
 }
 
 // sku: null for create, or an existing SKU doc's data for edit (identity
 // fields become read-only — see updateSku's immutable-fields rule).
-export default function SkuForm({ sku, onDone }) {
+export default function SkuForm({ sku, onDone }: { sku: Sku | null; onDone: () => void }) {
   const isEdit = Boolean(sku)
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<SkuFormState>({
     partType: sku?.partType ?? PART_TYPES[0],
     model: sku?.model ?? '',
     grade: sku?.grade ?? GRADES[0],
@@ -42,14 +57,15 @@ export default function SkuForm({ sku, onDone }) {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  function field(name) {
+  function field<K extends keyof SkuFormState>(name: K) {
     return {
       value: form[name],
-      onChange: (e) => setForm((f) => ({ ...f, [name]: e.target.value })),
+      onChange: (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+        setForm((f) => ({ ...f, [name]: e.target.value as SkuFormState[K] })),
     }
   }
 
-  async function handleSubmit(event) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError('')
     setSubmitting(true)
@@ -62,7 +78,7 @@ export default function SkuForm({ sku, onDone }) {
         expectedResale: dollarsStringToCents(form.expectedResale),
       }
 
-      if (isEdit) {
+      if (isEdit && sku) {
         const updateSku = httpsCallable(functions, 'updateSku')
         await updateSku({ skuCode: sku.skuCode, ...pricing })
       } else {
@@ -78,7 +94,7 @@ export default function SkuForm({ sku, onDone }) {
       }
       onDone()
     } catch (err) {
-      setError(err.message)
+      setError((err as Error).message)
     } finally {
       setSubmitting(false)
     }
@@ -86,7 +102,7 @@ export default function SkuForm({ sku, onDone }) {
 
   return (
     <div className="p-6 max-w-md">
-      <h2 className="text-lg font-semibold mb-4">{isEdit ? `Edit ${sku.skuCode}` : 'New SKU'}</h2>
+      <h2 className="text-lg font-semibold mb-4">{isEdit ? `Edit ${sku!.skuCode}` : 'New SKU'}</h2>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <label className="flex flex-col gap-1">
           Part type

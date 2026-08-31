@@ -1,11 +1,19 @@
+import type { ReactNode } from 'react'
 import { createContext, useContext, useEffect, useState } from 'react'
+import type { User } from 'firebase/auth'
 import { onAuthStateChanged, getIdTokenResult } from 'firebase/auth'
-import { auth } from './firebase.js'
+import { auth } from './firebase'
 
-const AuthContext = createContext({ loading: true, user: null, isStaff: false })
+interface AuthState {
+  loading: boolean
+  user: User | null
+  isStaff: boolean
+}
 
-export function AuthProvider({ children }) {
-  const [state, setState] = useState({ loading: true, user: null, isStaff: false })
+const AuthContext = createContext<AuthState>({ loading: true, user: null, isStaff: false })
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<AuthState>({ loading: true, user: null, isStaff: false })
 
   useEffect(() => {
     return onAuthStateChanged(auth, async (user) => {

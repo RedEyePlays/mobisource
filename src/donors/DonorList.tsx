@@ -1,13 +1,14 @@
 import { Fragment, useEffect, useState } from 'react'
 import { collection, doc, getDoc, getDocs } from 'firebase/firestore'
-import { db } from '../firebase.js'
+import { db } from '../firebase'
+import type { Cents, Donor, Teardown } from '../types'
 
-function formatCents(cents) {
+function formatCents(cents: Cents) {
   return `$${(cents / 100).toFixed(2)}`
 }
 
-function TeardownParts({ teardownId }) {
-  const [teardown, setTeardown] = useState(null)
+function TeardownParts({ teardownId }: { teardownId: string }) {
+  const [teardown, setTeardown] = useState<Teardown | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -15,7 +16,7 @@ function TeardownParts({ teardownId }) {
     async function load() {
       const snap = await getDoc(doc(db, 'teardowns', teardownId))
       if (!cancelled) {
-        setTeardown(snap.exists() ? snap.data() : null)
+        setTeardown(snap.exists() ? (snap.data() as Teardown) : null)
         setLoading(false)
       }
     }
@@ -66,11 +67,11 @@ function TeardownParts({ teardownId }) {
   )
 }
 
-export default function DonorList({ onIntake }) {
-  const [donors, setDonors] = useState([])
+export default function DonorList({ onIntake }: { onIntake: () => void }) {
+  const [donors, setDonors] = useState<Donor[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshKey, setRefreshKey] = useState(0)
-  const [expandedId, setExpandedId] = useState(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -79,7 +80,7 @@ export default function DonorList({ onIntake }) {
       setLoading(true)
       const snap = await getDocs(collection(db, 'donors'))
       if (!cancelled) {
-        setDonors(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+        setDonors(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Donor))
         setLoading(false)
       }
     }

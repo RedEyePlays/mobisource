@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { collection, getDocs, orderBy, query } from 'firebase/firestore'
-import { db } from '../firebase.js'
+import { db } from '../firebase'
+import type { Buyer } from '../types'
 
-export default function BuyerList({ onCreate, onEdit }) {
-  const [buyers, setBuyers] = useState([])
+export default function BuyerList({ onCreate, onEdit }: { onCreate: () => void; onEdit: (buyer: Buyer) => void }) {
+  const [buyers, setBuyers] = useState<Buyer[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -14,7 +15,7 @@ export default function BuyerList({ onCreate, onEdit }) {
       setLoading(true)
       const snap = await getDocs(query(collection(db, 'buyers'), orderBy('name')))
       if (!cancelled) {
-        setBuyers(snap.docs.map((d) => d.data()))
+        setBuyers(snap.docs.map((d) => d.data() as Buyer))
         setLoading(false)
       }
     }

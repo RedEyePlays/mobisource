@@ -1,16 +1,17 @@
 import { useState } from 'react'
+import type { FormEvent } from 'react'
 import { signInWithEmailAndPassword } from 'firebase/auth'
-import { auth } from './firebase.js'
+import { auth } from './firebase'
 
 // No sign-up flow — accounts are provisioned out-of-band, see
-// scripts/grantStaffClaim.js.
+// scripts/grantStaffClaim.ts.
 export default function SignIn() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  async function handleSubmit(event) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError('')
     setSubmitting(true)

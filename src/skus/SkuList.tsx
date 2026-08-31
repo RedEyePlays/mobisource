@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
 import { collection, getDocs, orderBy, query } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
-import { db, functions } from '../firebase.js'
+import { db, functions } from '../firebase'
+import type { Cents, Sku } from '../types'
 
-function formatCents(cents) {
+function formatCents(cents: Cents) {
   return `$${(cents / 100).toFixed(2)}`
 }
 
-export default function SkuList({ onCreate, onEdit }) {
-  const [skus, setSkus] = useState([])
+export default function SkuList({ onCreate, onEdit }: { onCreate: () => void; onEdit: (sku: Sku) => void }) {
+  const [skus, setSkus] = useState<Sku[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshKey, setRefreshKey] = useState(0)
   const [error, setError] = useState('')
@@ -20,7 +21,7 @@ export default function SkuList({ onCreate, onEdit }) {
       setLoading(true)
       const snap = await getDocs(query(collection(db, 'skus'), orderBy('skuCode')))
       if (!cancelled) {
-        setSkus(snap.docs.map((d) => d.data()))
+        setSkus(snap.docs.map((d) => d.data() as Sku))
         setLoading(false)
       }
     }
@@ -31,14 +32,14 @@ export default function SkuList({ onCreate, onEdit }) {
     }
   }, [refreshKey])
 
-  async function handleDeactivate(skuCode) {
+  async function handleDeactivate(skuCode: string) {
     setError('')
     try {
       const deactivateSku = httpsCallable(functions, 'deactivateSku')
       await deactivateSku({ skuCode })
       setRefreshKey((k) => k + 1)
     } catch (err) {
-      setError(err.message)
+      setError((err as Error).message)
     }
   }
 

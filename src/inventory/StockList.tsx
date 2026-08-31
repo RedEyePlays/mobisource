@@ -1,24 +1,26 @@
 import { useEffect, useMemo, useState } from 'react'
 import { collection, getDocs } from 'firebase/firestore'
-import { db } from '../firebase.js'
+import type { Timestamp } from 'firebase/firestore'
+import { db } from '../firebase'
+import type { BulkStock, Cents, Grade, Sku, StockItem, StockItemStatus } from '../types'
 
-const STATUSES = ['inStock', 'reserved', 'sold', 'scrapped', 'returned']
-const GRADES = ['A', 'B', 'C', 'N']
+const STATUSES: readonly StockItemStatus[] = ['inStock', 'reserved', 'sold', 'scrapped', 'returned']
+const GRADES: readonly Grade[] = ['A', 'B', 'C', 'N']
 
-function formatCents(cents) {
+function formatCents(cents: Cents) {
   return `$${(cents / 100).toFixed(2)}`
 }
 
-function daysInStock(createdAt) {
+function daysInStock(createdAt: Timestamp | undefined) {
   if (!createdAt?.toDate) return '—'
   const ms = Date.now() - createdAt.toDate().getTime()
   return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)))
 }
 
 export default function StockList() {
-  const [items, setItems] = useState([])
-  const [skusByCode, setSkusByCode] = useState({})
-  const [bulkStock, setBulkStock] = useState([])
+  const [items, setItems] = useState<StockItem[]>([])
+  const [skusByCode, setSkusByCode] = useState<Record<string, Sku>>({})
+  const [bulkStock, setBulkStock] = useState<BulkStock[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -40,14 +42,14 @@ export default function StockList() {
       ])
       if (cancelled) return
 
-      const skuMap = {}
+      const skuMap: Record<string, Sku> = {}
       skusSnap.docs.forEach((d) => {
-        skuMap[d.id] = d.data()
+        skuMap[d.id] = d.data() as Sku
       })
 
-      setItems(itemsSnap.docs.map((d) => ({ id: d.id, ...d.data() })))
+      setItems(itemsSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as StockItem))
       setSkusByCode(skuMap)
-      setBulkStock(bulkSnap.docs.map((d) => d.data()))
+      setBulkStock(bulkSnap.docs.map((d) => d.data() as BulkStock))
       setLoading(false)
     }
 
@@ -92,7 +94,7 @@ export default function StockList() {
 
       <div className="border rounded px-4 py-3 mb-4 inline-block">
         <p className="text-sm text-gray-500">Value on hand</p>
-        <p className="text-xl font-semibold">{formatCents(valueOnHand)}</p>
+        <p className="text-xl font-semibold">{formatCents(valueOnHand as Cents)}</p>
       </div>
 
       <div className="flex flex-wrap gap-2 mb-4">

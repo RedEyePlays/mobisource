@@ -1,12 +1,26 @@
 import { useState } from 'react'
+import type { ChangeEvent, FormEvent } from 'react'
 import { httpsCallable } from 'firebase/functions'
-import { functions } from '../firebase.js'
+import { functions } from '../firebase'
+import type { DonorCondition, DonorSource, PurchaseCurrency } from '../types'
 
-const CONDITIONS = ['A', 'B', 'C', 'D']
-const SOURCES = ['local', 'china', 'trade-in']
-const CURRENCIES = ['CAD', 'USD']
+const CONDITIONS: readonly DonorCondition[] = ['A', 'B', 'C', 'D']
+const SOURCES: readonly DonorSource[] = ['local', 'china', 'trade-in']
+const CURRENCIES: readonly PurchaseCurrency[] = ['CAD', 'USD']
 
-const initialForm = {
+interface DonorFormState {
+  model: string
+  imei: string
+  imeiBlankReason: string
+  purchaseCost: string
+  purchaseCurrency: PurchaseCurrency
+  fxRateUsed: string
+  source: DonorSource
+  supplierRef: string
+  condition: DonorCondition
+}
+
+const initialForm: DonorFormState = {
   model: '',
   imei: '',
   imeiBlankReason: '',
@@ -18,26 +32,32 @@ const initialForm = {
   condition: 'A',
 }
 
-export default function DonorForm({ onDone }) {
-  const [form, setForm] = useState(initialForm)
+interface IntakeDonorResult {
+  donorId: string
+  warning: string | null
+}
+
+export default function DonorForm({ onDone }: { onDone: () => void }) {
+  const [form, setForm] = useState<DonorFormState>(initialForm)
   const [error, setError] = useState('')
   const [warning, setWarning] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  function field(name) {
+  function field<K extends keyof DonorFormState>(name: K) {
     return {
       value: form[name],
-      onChange: (e) => setForm((f) => ({ ...f, [name]: e.target.value })),
+      onChange: (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+        setForm((f) => ({ ...f, [name]: e.target.value as DonorFormState[K] })),
     }
   }
 
-  async function handleSubmit(event) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError('')
     setWarning('')
     setSubmitting(true)
     try {
-      const intakeDonor = httpsCallable(functions, 'intakeDonor')
+      const intakeDonor = httpsCallable<Record<string, unknown>, IntakeDonorResult>(functions, 'intakeDonor')
       const result = await intakeDonor({
         model: form.model,
         imei: form.imei,
@@ -56,7 +76,7 @@ export default function DonorForm({ onDone }) {
         onDone()
       }
     } catch (err) {
-      setError(err.message)
+      setError((err as Error).message)
     } finally {
       setSubmitting(false)
     }

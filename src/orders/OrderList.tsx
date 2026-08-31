@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react'
 import { collection, getDocs, orderBy, query } from 'firebase/firestore'
-import { db } from '../firebase.js'
+import { db } from '../firebase'
+import type { Cents, SalesOrder } from '../types'
 
-function formatCents(cents) {
+function formatCents(cents: Cents) {
   return `$${(cents / 100).toFixed(2)}`
 }
 
-function margin(order) {
-  return order.lines.reduce((sum, line) => sum + (line.unitPrice - line.unitCost), 0)
+function margin(order: SalesOrder): Cents {
+  return order.lines.reduce((sum, line) => sum + (line.unitPrice - line.unitCost), 0) as Cents
 }
 
-export default function OrderList({ onCreate }) {
-  const [orders, setOrders] = useState([])
+export default function OrderList({ onCreate }: { onCreate: () => void }) {
+  const [orders, setOrders] = useState<SalesOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -22,7 +23,7 @@ export default function OrderList({ onCreate }) {
       setLoading(true)
       const snap = await getDocs(query(collection(db, 'salesOrders'), orderBy('createdAt', 'desc')))
       if (!cancelled) {
-        setOrders(snap.docs.map((d) => d.data()))
+        setOrders(snap.docs.map((d) => d.data() as SalesOrder))
         setLoading(false)
       }
     }
