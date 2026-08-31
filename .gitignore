@@ -1,6 +1,7 @@
 node_modules
 dist
 functions/lib
+print-service/lib
 
 .env
 .env.local
