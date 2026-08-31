@@ -286,3 +286,15 @@ export interface Expense {
   hstPaidCAD: Cents
   createdAt: Timestamp
 }
+
+export interface DailyClose {
+  date: string
+  from: Timestamp
+  to: Timestamp
+  cashSalesTotal: Cents
+  cardSalesTotal: Cents
+  eTransferSalesTotal: Cents
+  countedCash: Cents
+  cashVariance: Cents
+  closedAt: Timestamp
+}

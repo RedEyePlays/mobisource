@@ -480,3 +480,19 @@ export interface Expense {
   hstPaidCAD: Cents
   createdAt: Timestamp
 }
+
+/** `dailyCloses/{date}` (docs/SCHEMA.md §18) — doc ID is the closed date ('YYYY-MM-DD'), which is what locks a day: closeDay refuses to close the same date twice. A record, like an invoice — once written, never updated. */
+export interface DailyClose {
+  date: string
+  /** The [from, to) window closeDay actually queried — kept for audit, since the window's local-midnight boundaries are supplied by the caller (see closeDay.ts). */
+  from: Timestamp
+  to: Timestamp
+  cashSalesTotal: Cents
+  cardSalesTotal: Cents
+  eTransferSalesTotal: Cents
+  /** What the cashier counted in the drawer. */
+  countedCash: Cents
+  /** countedCash - cashSalesTotal. Negative means short, positive means over. */
+  cashVariance: Cents
+  closedAt: Timestamp
+}

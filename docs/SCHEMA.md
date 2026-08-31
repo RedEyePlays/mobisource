@@ -205,6 +205,24 @@ Auto-id, create-only — no update/delete path was asked for; a mistaken
 entry gets a correcting entry, same reasoning as the append-only ledger.
 The other source of input tax credits alongside `bulkReceipts.hstPaidCAD`.
 
+### `dailyCloses` — one counter day's cash reconciliation (§18)
+
+```
+date                 string    'YYYY-MM-DD' (doc id) — closing the same
+                                date twice is rejected; this is the lock
+from, to             timestamp the [from, to) window actually queried
+cashSalesTotal       number    cents
+cardSalesTotal       number    cents
+eTransferSalesTotal  number    cents
+countedCash          number    cents — what the cashier counted
+cashVariance         number    cents — countedCash - cashSalesTotal
+closedAt             timestamp
+```
+
+Doc ID = `date`, which is what makes a close a lock: `closeDay` refuses to
+close a date that already has a doc. A record, like an invoice — once
+written, never updated.
+
 ### `teardowns` — the event that converts a donor into parts
 
 ```
@@ -1040,3 +1058,53 @@ else — rent, utilities, supplies. Neither is derived from cost fields
 already on those docs (e.g. `unitCostCAD`) — tax treatment isn't
 recoverable from a landed cost alone, so both are entered explicitly at
 receiving/recording time and default to 0.
+
+---
+
+## 18. Daily close
+
+End of day at the counter: `closeDay({ date, fromMs, toMs, countedCash })`
+sums that day's realized sales by payment method and locks the day.
+
+```
+cashSalesTotal, cardSalesTotal, eTransferSalesTotal
+                Σ order.total for every salesOrder with a confirmedAt in
+                [from, to), grouped by paymentMethod. Every such order is
+                realized for good — confirmedAt is set once by
+                confirmOrder and nothing (a return included) ever moves an
+                order back off a realized status — so no separate status
+                filter is needed.
+countedCash     what the cashier counted in the drawer
+cashVariance    countedCash - cashSalesTotal — negative is short, positive
+                is over
+```
+
+`account` (on-account, `paymentMethod: null`) sales are outside this —
+the close is specifically about what's in the cash register/card
+terminal/e-transfer inbox tonight, not wholesale invoicing.
+
+**Locking:** the doc ID is `date` ('YYYY-MM-DD'), so `closeDay` rejects a
+second close for the same date outright — a closed day is a record, not
+a draft; there's no path to re-close or edit one. Reviewing a locked day
+is just reading `dailyCloses/{date}`.
+
+**Decision made without asking — the day's window.** `closeDay` doesn't
+derive `[from, to)` from `date` itself; the caller (the browser) computes
+it from its own local midnight-to-midnight and passes `fromMs`/`toMs`
+directly. A Cloud Function runs in UTC by default, and naive UTC day
+boundaries would misattribute an evening sale (Eastern time) to the wrong
+calendar day — there's no dependency-free way to compute IANA-timezone-
+aware boundaries server-side. The server only sanity-checks the window (a
+plausible span, roughly a day) rather than re-deriving it; the sums
+themselves are still computed authoritatively there, straight off
+`salesOrders` — only the window's boundary is client-supplied, not any
+dollar figure.
+
+**The close screen** (`DailyCloseScreen`) shows a live preview of the same
+three totals (queried the same way, client-side) before commit, an
+editable counted-cash field, and the resulting variance — committing
+calls `closeDay` and switches to a read-only view of what was recorded.
+Revisiting an already-closed day (same screen, same date) shows that
+locked record instead of the input form. **The closes list**
+(`CloseList`) shows every past close, newest first, for reviewing
+variance history at a glance.
