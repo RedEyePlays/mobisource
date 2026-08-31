@@ -15,68 +15,84 @@ export default function DonorRoiReport({ donors, stockItems }: { donors: Donor[]
 
   return (
     <div>
-      <h3 className="font-medium mb-2">By model</h3>
+      <h3 className="section-title mb-2">By model</h3>
       {report.byModel.length === 0 ? (
-        <p className="text-gray-500 mb-4">No torn-down donors yet.</p>
+        <p className="text-muted mb-4">No torn-down donors yet.</p>
       ) : (
-        <table className="w-full text-left border-collapse mb-6">
-          <thead>
-            <tr className="border-b">
-              <th className="py-2 pr-4">Model</th>
-              <th className="py-2 pr-4">Donors</th>
-              <th className="py-2 pr-4">Parts sold / created</th>
-              <th className="py-2 pr-4">Revenue so far</th>
-              <th className="py-2 pr-4">Donor cost</th>
-              <th className="py-2 pr-4">ROI</th>
-            </tr>
-          </thead>
-          <tbody>
-            {report.byModel.map((row) => (
-              <tr key={row.model} className="border-b">
-                <td className="py-2 pr-4">{row.model}</td>
-                <td className="py-2 pr-4">{row.donorCount}</td>
-                <td className="py-2 pr-4">
-                  {row.soldParts} / {row.totalParts}
-                </td>
-                <td className="py-2 pr-4">{formatCents(row.totalSoldRevenue)}</td>
-                <td className="py-2 pr-4">{formatCents(row.totalDonorCost)}</td>
-                <td className="py-2 pr-4 font-medium">{formatRoi(row.roi)}</td>
+        <div className="table-wrap mb-6">
+          <table className="table-base">
+            <thead>
+              <tr>
+                <th>Model</th>
+                <th>Donors</th>
+                <th>Parts sold / created</th>
+                <th>Revenue so far</th>
+                <th>Donor cost</th>
+                <th>ROI</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {report.byModel.map((row) => (
+                <tr key={row.model}>
+                  <td>{row.model}</td>
+                  <td>{row.donorCount}</td>
+                  <td>
+                    {row.soldParts} / {row.totalParts}
+                  </td>
+                  <td>
+                    <span className="num-md">{formatCents(row.totalSoldRevenue)}</span>
+                  </td>
+                  <td>
+                    <span className="num-md">{formatCents(row.totalDonorCost)}</span>
+                  </td>
+                  <td>
+                    <span className="num-md">{formatRoi(row.roi)}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
-      <h3 className="font-medium mb-2">By donor</h3>
+      <h3 className="section-title mb-2">By donor</h3>
       {report.byDonor.length === 0 ? (
-        <p className="text-gray-500">No torn-down donors yet.</p>
+        <p className="text-muted">No torn-down donors yet.</p>
       ) : (
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b">
-              <th className="py-2 pr-4">Donor</th>
-              <th className="py-2 pr-4">Model</th>
-              <th className="py-2 pr-4">Parts sold / created</th>
-              <th className="py-2 pr-4">Revenue so far</th>
-              <th className="py-2 pr-4">Donor cost</th>
-              <th className="py-2 pr-4">ROI</th>
-            </tr>
-          </thead>
-          <tbody>
-            {report.byDonor.map((row) => (
-              <tr key={row.donorId} className="border-b">
-                <td className="py-2 pr-4 font-mono text-sm">{row.donorId}</td>
-                <td className="py-2 pr-4">{row.model}</td>
-                <td className="py-2 pr-4">
-                  {row.soldParts} / {row.totalParts}
-                </td>
-                <td className="py-2 pr-4">{formatCents(row.soldRevenue)}</td>
-                <td className="py-2 pr-4">{formatCents(row.donorCost)}</td>
-                <td className="py-2 pr-4">{formatRoi(row.roi)}</td>
+        <div className="table-wrap">
+          <table className="table-base">
+            <thead>
+              <tr>
+                <th>Donor</th>
+                <th>Model</th>
+                <th>Parts sold / created</th>
+                <th>Revenue so far</th>
+                <th>Donor cost</th>
+                <th>ROI</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {report.byDonor.map((row) => (
+                <tr key={row.donorId}>
+                  <td className="font-mono text-sm">{row.donorId}</td>
+                  <td>{row.model}</td>
+                  <td>
+                    {row.soldParts} / {row.totalParts}
+                  </td>
+                  <td>
+                    <span className="num-md">{formatCents(row.soldRevenue)}</span>
+                  </td>
+                  <td>
+                    <span className="num-md">{formatCents(row.donorCost)}</span>
+                  </td>
+                  <td>
+                    <span className="num-md">{formatRoi(row.roi)}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )

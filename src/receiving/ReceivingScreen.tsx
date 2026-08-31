@@ -16,13 +16,9 @@ export default function ReceivingScreen() {
 
   return (
     <div>
-      <div className="flex flex-wrap gap-2 px-6 pt-4 border-b">
+      <div className="flex gap-2 overflow-x-auto border-b border-slate-200 px-4 pt-4 sm:px-6 dark:border-slate-800">
         {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`pb-2 px-1 ${tab === t.key ? 'font-semibold border-b-2 border-black' : 'text-gray-500'}`}
-          >
+          <button key={t.key} onClick={() => setTab(t.key)} className={tab === t.key ? 'tab-link-on' : 'tab-link-off'}>
             {t.label}
           </button>
         ))}

@@ -4,6 +4,7 @@ import { collection, doc, getDoc, getDocs } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { db, functions } from '../firebase'
 import { supplierSkuMapId } from './supplierSkuMapId'
+import { printBulkLabels } from '../printing/printClient'
 import type { PurchaseCurrency, Sku, SupplierSkuMap } from '../types'
 
 const CURRENCIES: readonly PurchaseCurrency[] = ['CAD', 'USD']
@@ -51,6 +52,7 @@ export default function BulkReceiveForm({ onDone }: { onDone: () => void }) {
   const [nextKey, setNextKey] = useState(1)
   const [activeSkus, setActiveSkus] = useState<Sku[] | null>(null)
   const [error, setError] = useState('')
+  const [printWarning, setPrintWarning] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   async function loadActiveSkus() {
@@ -91,9 +93,30 @@ export default function BulkReceiveForm({ onDone }: { onDone: () => void }) {
     setLines((ls) => (ls.length > 1 ? ls.filter((l) => l.key !== key) : ls))
   }
 
+  // Prints a batch of N bulk-part labels per line (N = the qty just
+  // received) — same barcode on every unit, per docs/SCHEMA.md §2. Runs
+  // after the receipt is already committed, so a print failure here never
+  // blocks or reverses the receiving transaction.
+  async function printLabelsFor(receivedLines: LineState[]): Promise<number> {
+    const skus = await loadActiveSkus()
+    const skuByCode = new Map(skus.map((s) => [s.skuCode, s]))
+    const outcomes = await Promise.allSettled(
+      receivedLines.map((line) => {
+        const sku = skuByCode.get(line.skuCode)
+        if (!sku) return Promise.reject(new Error(`SKU ${line.skuCode} not found for printing.`))
+        return printBulkLabels(
+          { skuCode: sku.skuCode, model: sku.model, grade: sku.grade, partType: sku.partType },
+          Number(line.qty),
+        )
+      }),
+    )
+    return outcomes.filter((o) => o.status === 'rejected').length
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError('')
+    setPrintWarning('')
 
     const unresolved = lines.find((l) => !l.skuCode)
     if (unresolved) {
@@ -121,7 +144,15 @@ export default function BulkReceiveForm({ onDone }: { onDone: () => void }) {
             : null,
         })),
       })
-      onDone()
+
+      const failedCount = await printLabelsFor(lines)
+      if (failedCount > 0) {
+        setPrintWarning(
+          `Shipment received. Labels for ${failedCount} of ${lines.length} line${lines.length === 1 ? '' : 's'} didn't print — check the print service is running, then reprint from the SKU catalog.`,
+        )
+      } else {
+        onDone()
+      }
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -130,29 +161,19 @@ export default function BulkReceiveForm({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <div className="p-6 max-w-2xl">
-      <h2 className="text-lg font-semibold mb-4">Receive a shipment</h2>
+    <div className="mx-auto max-w-2xl p-4 sm:p-6">
+      <h2 className="page-title mb-4">Receive a shipment</h2>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <div className="grid grid-cols-3 gap-3">
-          <label className="flex flex-col gap-1">
+        <div className="flex flex-col gap-3 md:grid md:grid-cols-3">
+          <label className="field">
             Supplier
-            <input
-              value={supplier}
-              onChange={(e) => setSupplier(e.target.value)}
-              className="border rounded px-3 py-2"
-              required
-            />
+            <input value={supplier} onChange={(e) => setSupplier(e.target.value)} className="input" required />
           </label>
-          <label className="flex flex-col gap-1">
+          <label className="field">
             Invoice ref
-            <input
-              value={invoiceRef}
-              onChange={(e) => setInvoiceRef(e.target.value)}
-              className="border rounded px-3 py-2"
-              required
-            />
+            <input value={invoiceRef} onChange={(e) => setInvoiceRef(e.target.value)} className="input" required />
           </label>
-          <label className="flex flex-col gap-1">
+          <label className="field">
             FX rate (USD→CAD)
             <input
               value={fxRate}
@@ -160,30 +181,30 @@ export default function BulkReceiveForm({ onDone }: { onDone: () => void }) {
               type="number"
               step="0.0001"
               min="0"
-              className="border rounded px-3 py-2"
+              className="input"
               required
             />
           </label>
         </div>
 
-        <div className="border rounded p-3">
-          <p className="font-medium mb-2">Shipping</p>
-          <div className="flex gap-4 mb-2">
+        <div className="card p-3">
+          <p className="section-title mb-2">Shipping</p>
+          <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:gap-4">
             <label className="flex items-center gap-2">
-              <input type="radio" checked={shippingKnown} onChange={() => setShippingKnown(true)} />
+              <input type="radio" checked={shippingKnown} onChange={() => setShippingKnown(true)} className="checkbox" />
               Known now
             </label>
             <label className="flex items-center gap-2">
-              <input type="radio" checked={!shippingKnown} onChange={() => setShippingKnown(false)} />
+              <input type="radio" checked={!shippingKnown} onChange={() => setShippingKnown(false)} className="checkbox" />
               Pending — apply it later
             </label>
           </div>
           {shippingKnown && (
-            <div className="flex gap-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
               <select
                 value={shippingCurrency}
                 onChange={(e) => setShippingCurrency(e.target.value as PurchaseCurrency)}
-                className="border rounded px-3 py-2"
+                className="select sm:w-auto"
               >
                 {CURRENCIES.map((c) => (
                   <option key={c} value={c}>
@@ -198,7 +219,7 @@ export default function BulkReceiveForm({ onDone }: { onDone: () => void }) {
                 step="0.01"
                 min="0"
                 placeholder="Total shipping"
-                className="border rounded px-3 py-2 flex-1"
+                className="input flex-1"
                 required
               />
             </div>
@@ -206,21 +227,21 @@ export default function BulkReceiveForm({ onDone }: { onDone: () => void }) {
         </div>
 
         <div className="flex flex-col gap-3">
-          <p className="font-medium">Lines</p>
+          <p className="section-title">Lines</p>
           {lines.map((line) => (
-            <div key={line.key} className="border rounded p-3">
-              <div className="grid grid-cols-4 gap-2 mb-2">
-                <label className="flex flex-col gap-1 text-sm">
+            <div key={line.key} className="card p-3">
+              <div className="flex flex-col gap-2 sm:grid sm:grid-cols-4">
+                <label className="field text-sm">
                   Supplier SKU
                   <input
                     value={line.supplierSku}
                     onChange={(e) => updateLine(line.key, { supplierSku: e.target.value, resolution: 'unresolved' })}
                     onBlur={() => resolveSupplierSku(line)}
-                    className="border rounded px-2 py-1"
+                    className="input"
                     required
                   />
                 </label>
-                <label className="flex flex-col gap-1 text-sm">
+                <label className="field text-sm">
                   Qty
                   <input
                     value={line.qty}
@@ -228,11 +249,11 @@ export default function BulkReceiveForm({ onDone }: { onDone: () => void }) {
                     type="number"
                     min="1"
                     step="1"
-                    className="border rounded px-2 py-1"
+                    className="input"
                     required
                   />
                 </label>
-                <label className="flex flex-col gap-1 text-sm">
+                <label className="field text-sm">
                   Unit cost (USD)
                   <input
                     value={line.unitCostUSD}
@@ -240,17 +261,13 @@ export default function BulkReceiveForm({ onDone }: { onDone: () => void }) {
                     type="number"
                     min="0"
                     step="0.01"
-                    className="border rounded px-2 py-1"
+                    className="input"
                     required
                   />
                 </label>
                 <div className="flex items-end">
                   {lines.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeLine(line.key)}
-                      className="text-gray-500 text-sm px-2 py-1"
-                    >
+                    <button type="button" onClick={() => removeLine(line.key)} className="btn-ghost btn-sm">
                       Remove line
                     </button>
                   )}
@@ -258,20 +275,20 @@ export default function BulkReceiveForm({ onDone }: { onDone: () => void }) {
               </div>
 
               {line.resolution === 'resolved' && (
-                <p className="text-sm text-green-700 font-mono">Resolved: {line.skuCode}</p>
+                <p className="mt-2 font-mono text-sm text-emerald-700 dark:text-emerald-400">Resolved: {line.skuCode}</p>
               )}
               {line.resolution === 'not-found' && (
                 <div className="mt-2">
-                  <p className="text-sm text-yellow-700 mb-1">
+                  <p className="mb-1 text-sm text-amber-700 dark:text-amber-400">
                     No mapping for this supplier code yet — pick the SKU it maps to:
                   </p>
                   <input
                     value={line.skuPickerQuery}
                     onChange={(e) => updateLine(line.key, { skuPickerQuery: e.target.value })}
                     placeholder="Search SKUs"
-                    className="border rounded px-2 py-1 text-sm w-full mb-1"
+                    className="input mb-1 min-h-9 py-1 text-sm"
                   />
-                  <div className="flex flex-col gap-1 max-h-40 overflow-y-auto">
+                  <div className="flex max-h-40 flex-col gap-1 overflow-y-auto">
                     {(activeSkus ?? [])
                       .filter((s) =>
                         s.skuCode.toLowerCase().includes(line.skuPickerQuery.trim().toLowerCase()),
@@ -282,7 +299,7 @@ export default function BulkReceiveForm({ onDone }: { onDone: () => void }) {
                           type="button"
                           key={s.skuCode}
                           onClick={() => updateLine(line.key, { skuCode: s.skuCode, resolution: 'resolved' })}
-                          className="text-left border rounded px-2 py-1 text-sm font-mono active:bg-gray-100"
+                          className="card active:bg-slate-100 dark:active:bg-slate-800 px-2 py-1.5 text-left font-mono text-sm"
                         >
                           {s.skuCode}
                         </button>
@@ -291,20 +308,21 @@ export default function BulkReceiveForm({ onDone }: { onDone: () => void }) {
                 </div>
               )}
 
-              <label className="flex items-center gap-2 text-sm mt-2">
+              <label className="mt-2 flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
                   checked={line.oversized}
                   onChange={(e) => updateLine(line.key, { oversized: e.target.checked })}
+                  className="checkbox"
                 />
                 Oversized — flat per-unit shipping override
               </label>
               {line.oversized && (
-                <div className="flex gap-2 mt-1">
+                <div className="mt-1 flex gap-2">
                   <select
                     value={line.overrideCurrency}
                     onChange={(e) => updateLine(line.key, { overrideCurrency: e.target.value as PurchaseCurrency })}
-                    className="border rounded px-2 py-1 text-sm"
+                    className="select w-auto min-h-9 py-1 text-sm"
                   >
                     {CURRENCIES.map((c) => (
                       <option key={c} value={c}>
@@ -319,32 +337,39 @@ export default function BulkReceiveForm({ onDone }: { onDone: () => void }) {
                     min="0"
                     step="0.01"
                     placeholder="Per-unit shipping"
-                    className="border rounded px-2 py-1 text-sm flex-1"
+                    className="input min-h-9 flex-1 py-1 text-sm"
                     required={line.oversized}
                   />
                 </div>
               )}
             </div>
           ))}
-          <button type="button" onClick={addLine} className="border rounded px-3 py-2 text-left text-gray-700">
+          <button type="button" onClick={addLine} className="btn-secondary text-left text-slate-700 dark:text-slate-200">
             + Add line
           </button>
         </div>
 
-        {error && <p className="text-red-600 text-sm">{error}</p>}
+        {error && <p className="text-danger text-sm">{error}</p>}
 
-        <div className="flex gap-2">
-          <button
-            type="submit"
-            disabled={submitting}
-            className="bg-black text-white rounded px-3 py-2 disabled:opacity-50"
-          >
-            Receive shipment
-          </button>
-          <button type="button" onClick={onDone} className="border rounded px-3 py-2">
-            Cancel
-          </button>
-        </div>
+        {printWarning && (
+          <div className="banner-warning flex flex-col gap-2">
+            <p>{printWarning}</p>
+            <button type="button" onClick={onDone} className="btn-secondary btn-sm self-start">
+              Continue
+            </button>
+          </div>
+        )}
+
+        {!printWarning && (
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button type="submit" disabled={submitting} className="btn-primary">
+              {submitting ? 'Receiving…' : 'Receive shipment'}
+            </button>
+            <button type="button" onClick={onDone} className="btn-secondary">
+              Cancel
+            </button>
+          </div>
+        )}
       </form>
     </div>
   )

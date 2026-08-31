@@ -27,43 +27,45 @@ export default function PendingReceiptsList({ onSelect }: { onSelect: (receipt: 
   }, [refreshKey])
 
   return (
-    <div className="p-6 max-w-2xl">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold">Shipping pending</h2>
-        <button onClick={() => setRefreshKey((k) => k + 1)} className="border rounded px-3 py-1">
+    <div className="mx-auto max-w-2xl p-4 sm:p-6">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="page-title">Shipping pending</h2>
+        <button onClick={() => setRefreshKey((k) => k + 1)} className="btn-secondary btn-sm">
           Refresh
         </button>
       </div>
 
       {loading ? (
-        <p>Loading…</p>
+        <p className="text-muted">Loading…</p>
       ) : receipts.length === 0 ? (
-        <p className="text-gray-500">No receipts waiting on a shipping bill.</p>
+        <p className="text-muted">No receipts waiting on a shipping bill.</p>
       ) : (
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b">
-              <th className="py-2 pr-4">Supplier</th>
-              <th className="py-2 pr-4">Invoice</th>
-              <th className="py-2 pr-4">Lines</th>
-              <th className="py-2 pr-4"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {receipts.map((receipt) => (
-              <tr key={receipt.receiptId} className="border-b">
-                <td className="py-2 pr-4">{receipt.supplier}</td>
-                <td className="py-2 pr-4">{receipt.invoiceRef}</td>
-                <td className="py-2 pr-4">{receipt.lines.length}</td>
-                <td className="py-2 pr-4">
-                  <button onClick={() => onSelect(receipt)} className="border rounded px-2 py-1 text-sm">
-                    Apply shipping
-                  </button>
-                </td>
+        <div className="table-wrap">
+          <table className="table-base">
+            <thead>
+              <tr>
+                <th>Supplier</th>
+                <th>Invoice</th>
+                <th>Lines</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {receipts.map((receipt) => (
+                <tr key={receipt.receiptId}>
+                  <td>{receipt.supplier}</td>
+                  <td>{receipt.invoiceRef}</td>
+                  <td>{receipt.lines.length}</td>
+                  <td>
+                    <button onClick={() => onSelect(receipt)} className="btn-secondary btn-sm">
+                      Apply shipping
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )

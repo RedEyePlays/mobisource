@@ -11,10 +11,10 @@ export default function TeardownScreen() {
     return (
       <div>
         {justCompletedModel && (
-          <div className="max-w-lg mx-auto px-4 pt-4">
-            <div className="border border-green-600 bg-green-50 rounded-lg px-4 py-3 flex items-center justify-between">
+          <div className="mx-auto max-w-lg px-4 pt-4">
+            <div className="banner-success flex items-center justify-between">
               <span>{justCompletedModel} torn down.</span>
-              <button onClick={() => setJustCompletedModel(null)} className="text-green-700 font-medium">
+              <button onClick={() => setJustCompletedModel(null)} className="font-medium text-emerald-700 dark:text-emerald-300">
                 Dismiss
               </button>
             </div>

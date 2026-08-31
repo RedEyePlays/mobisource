@@ -35,18 +35,18 @@ export default function PartRow({
   )
 
   return (
-    <div className="border rounded-lg px-4 py-4">
-      <div className="flex items-center justify-between mb-3">
+    <div className="card px-4 py-4">
+      <div className="mb-3 flex items-center justify-between">
         <div>
           <div className="text-lg font-semibold">{label}</div>
-          <div className="text-sm text-gray-500 font-mono">{skuCode}</div>
+          <div className="text-muted font-mono text-sm">{skuCode}</div>
         </div>
         <div className="flex items-center gap-2">
           {outcome === 'harvested' && allocatedPreview != null && (
-            <span className="text-lg font-medium">{formatCents(allocatedPreview)}</span>
+            <span className="num-lg">{formatCents(allocatedPreview)}</span>
           )}
           {onRemove && (
-            <button onClick={onRemove} className="text-gray-400 text-sm px-2 py-1" aria-label={`Remove ${label}`}>
+            <button onClick={onRemove} className="text-muted px-2 py-1 text-sm" aria-label={`Remove ${label}`}>
               Remove
             </button>
           )}
@@ -56,25 +56,19 @@ export default function PartRow({
       <div className="flex gap-2">
         <button
           onClick={() => onOutcomeChange('harvested')}
-          className={`flex-1 py-3 rounded-lg text-base font-medium ${
-            outcome === 'harvested' ? 'bg-black text-white' : 'border text-gray-700'
-          }`}
+          className={outcome === 'harvested' ? 'btn-toggle-on' : 'btn-toggle-off'}
         >
           Harvested
         </button>
         <button
           onClick={() => onOutcomeChange('scrapped')}
-          className={`flex-1 py-3 rounded-lg text-base font-medium ${
-            outcome === 'scrapped' ? 'bg-black text-white' : 'border text-gray-700'
-          }`}
+          className={outcome === 'scrapped' ? 'btn-toggle-on' : 'btn-toggle-off'}
         >
           Scrapped
         </button>
         <button
           onClick={() => onOutcomeChange('notHarvested')}
-          className={`flex-1 py-3 rounded-lg text-base font-medium ${
-            outcome === 'notHarvested' ? 'bg-black text-white' : 'border text-gray-700'
-          }`}
+          className={outcome === 'notHarvested' ? 'btn-toggle-on' : 'btn-toggle-off'}
         >
           Not harvested
         </button>
@@ -90,19 +84,12 @@ export default function PartRow({
                   setCustomReasonOpen(false)
                   onReasonChange(preset)
                 }}
-                className={`px-3 py-2 rounded-full text-sm ${
-                  reason === preset ? 'bg-black text-white' : 'border text-gray-700'
-                }`}
+                className={reason === preset ? 'chip-on' : 'chip-off'}
               >
                 {preset}
               </button>
             ))}
-            <button
-              onClick={() => setCustomReasonOpen(true)}
-              className={`px-3 py-2 rounded-full text-sm ${
-                customReasonOpen ? 'bg-black text-white' : 'border text-gray-700'
-              }`}
-            >
+            <button onClick={() => setCustomReasonOpen(true)} className={customReasonOpen ? 'chip-on' : 'chip-off'}>
               Other
             </button>
           </div>
@@ -112,10 +99,10 @@ export default function PartRow({
               value={reason}
               onChange={(e) => onReasonChange(e.target.value)}
               placeholder="Reason"
-              className="border rounded-lg px-3 py-3 text-base"
+              className="input"
             />
           )}
-          {!reason.trim() && <p className="text-red-600 text-sm">A reason is required for a scrapped part.</p>}
+          {!reason.trim() && <p className="text-danger text-sm">A reason is required for a scrapped part.</p>}
         </div>
       )}
     </div>

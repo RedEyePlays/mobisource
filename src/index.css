@@ -1,1 +1,160 @@
 @import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+ * MobiSource design system — mobile-first, bench-optimized, dark-mode aware.
+ *
+ * This app is used standing at a bench, on a phone, one-handed, with parts
+ * in the other hand. Every screen shares this one set of component classes
+ * instead of raw ad-hoc utilities, so the identity (indigo accent, rounded-xl
+ * surfaces, generous tap targets) stays consistent everywhere rather than
+ * drifting screen to screen. Dark mode follows the OS/browser preference
+ * automatically (Tailwind's default `dark:` media-query variant) — no
+ * manual toggle, since that would be a new interactive feature, not styling.
+ *
+ * Tailwind v4's plain `@layer components` classes can't `@apply` each other
+ * (only real Tailwind utilities), so each variant below is spelled out in
+ * full rather than composed from a shared base class.
+ * ------------------------------------------------------------------------ */
+
+@layer base {
+  html {
+    color-scheme: light dark;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100;
+  }
+}
+
+@layer components {
+  /* Page / surface scaffolding ------------------------------------------- */
+  .surface-page {
+    @apply min-h-screen bg-slate-50 dark:bg-slate-950;
+  }
+  .card {
+    @apply rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900;
+  }
+  .page-title {
+    @apply text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50;
+  }
+  .section-title {
+    @apply text-base font-semibold text-slate-900 dark:text-slate-100;
+  }
+
+  /* Buttons — min 44px tap target, thumb-reachable, bold identity color -- */
+  .btn-primary {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-base font-semibold text-white transition-colors hover:bg-indigo-500 active:scale-[0.98] active:bg-indigo-700 disabled:pointer-events-none disabled:opacity-40 dark:bg-indigo-500 dark:hover:bg-indigo-400;
+  }
+  .btn-secondary {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-base font-semibold text-slate-900 transition-colors hover:bg-slate-50 active:scale-[0.98] active:bg-slate-100 disabled:pointer-events-none disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800;
+  }
+  .btn-danger {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-300 bg-white px-4 py-3 text-base font-semibold text-red-700 transition-colors hover:bg-red-50 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40 dark:border-red-900 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-red-950;
+  }
+  .btn-ghost {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-3 text-base font-semibold text-slate-600 transition-colors hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-40 dark:text-slate-300 dark:hover:bg-slate-800;
+  }
+  .btn-sm {
+    @apply min-h-9 rounded-lg px-3 py-1.5 text-sm;
+  }
+  .btn-block {
+    @apply w-full;
+  }
+
+  /* Big three-way / toggle buttons (teardown checklist, POS-speed flows) - */
+  .btn-toggle-on {
+    @apply min-h-12 flex-1 rounded-xl border border-indigo-600 bg-indigo-600 text-base font-semibold text-white transition-colors;
+  }
+  .btn-toggle-off {
+    @apply min-h-12 flex-1 rounded-xl border border-slate-300 bg-white text-base font-semibold text-slate-700 transition-colors dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200;
+  }
+  .chip-on {
+    @apply min-h-9 rounded-full border border-indigo-600 bg-indigo-600 px-3.5 py-1.5 text-sm font-medium text-white transition-colors;
+  }
+  .chip-off {
+    @apply min-h-9 rounded-full border border-slate-300 bg-white px-3.5 py-1.5 text-sm font-medium text-slate-700 transition-colors dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200;
+  }
+
+  /* Forms ------------------------------------------------------------------ */
+  .field {
+    @apply flex flex-col gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300;
+  }
+  .input {
+    @apply min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500;
+  }
+  .select {
+    @apply min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100;
+  }
+  .checkbox {
+    @apply h-5 w-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-800;
+  }
+
+  /* Banners / inline messages ---------------------------------------------- */
+  .banner-info {
+    @apply rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950 dark:text-indigo-200;
+  }
+  .banner-success {
+    @apply rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200;
+  }
+  .banner-warning {
+    @apply rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200;
+  }
+  .banner-danger {
+    @apply rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-200;
+  }
+  .text-danger {
+    @apply text-red-600 dark:text-red-400;
+  }
+  .text-muted {
+    @apply text-slate-500 dark:text-slate-400;
+  }
+
+  /* Numbers legible at arm's length ----------------------------------------- */
+  .num-hero {
+    @apply text-3xl font-bold tracking-tight text-slate-900 tabular-nums dark:text-slate-50;
+  }
+  .num-lg {
+    @apply text-xl font-bold text-slate-900 tabular-nums dark:text-slate-50;
+  }
+  .num-md {
+    @apply text-base font-semibold text-slate-900 tabular-nums dark:text-slate-100;
+  }
+  .eyebrow {
+    @apply text-xs font-semibold tracking-wide text-slate-500 uppercase dark:text-slate-400;
+  }
+
+  /* Tables — horizontally scrollable on narrow screens, no markup fork ----- */
+  .table-wrap {
+    @apply -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0;
+  }
+  .table-base {
+    @apply w-full min-w-max border-collapse text-left text-sm;
+  }
+  .table-base th {
+    @apply border-b border-slate-200 py-2.5 pr-4 text-xs font-semibold tracking-wide text-slate-500 uppercase dark:border-slate-800 dark:text-slate-400;
+  }
+  .table-base td {
+    @apply border-b border-slate-100 py-2.5 pr-4 align-middle text-slate-800 dark:border-slate-800/80 dark:text-slate-200;
+  }
+
+  /* Top nav ------------------------------------------------------------------ */
+  .nav-link-on {
+    @apply min-h-10 shrink-0 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold whitespace-nowrap text-white transition-colors;
+  }
+  .nav-link-off {
+    @apply min-h-10 shrink-0 rounded-lg px-3 py-2 text-sm font-semibold whitespace-nowrap text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800;
+  }
+
+  /* Tab strip (Reports, Receiving) -------------------------------------------- */
+  .tab-link-on {
+    @apply min-h-10 shrink-0 border-b-2 border-indigo-600 px-1 pb-2 text-sm font-semibold whitespace-nowrap text-slate-900 transition-colors dark:text-slate-50;
+  }
+  .tab-link-off {
+    @apply min-h-10 shrink-0 border-b-2 border-transparent px-1 pb-2 text-sm font-semibold whitespace-nowrap text-slate-500 transition-colors dark:text-slate-400;
+  }
+
+  /* Sticky bottom action bar for primary actions, thumb reach -------------- */
+  .action-bar {
+    @apply fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white/95 p-4 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-950/95;
+  }
+}

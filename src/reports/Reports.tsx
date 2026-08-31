@@ -59,28 +59,26 @@ export default function Reports() {
   }, [refreshKey])
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold">Reports</h2>
-        <button onClick={() => setRefreshKey((k) => k + 1)} className="border rounded px-3 py-1">
+    <div className="p-4 sm:p-6">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="page-title">Reports</h2>
+        <button onClick={() => setRefreshKey((k) => k + 1)} className="btn-secondary btn-sm">
           Refresh
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-4 border-b">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`pb-2 px-1 ${tab === t.key ? 'font-semibold border-b-2 border-black' : 'text-gray-500'}`}
-          >
-            {t.label}
-          </button>
-        ))}
+      <div className="mb-4 overflow-x-auto">
+        <div className="flex gap-4 border-b border-slate-200 dark:border-slate-800">
+          {TABS.map((t) => (
+            <button key={t.key} onClick={() => setTab(t.key)} className={tab === t.key ? 'tab-link-on' : 'tab-link-off'}>
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
-        <p>Loading…</p>
+        <p className="text-muted">Loading…</p>
       ) : (
         <>
           {tab === 'donorRoi' && <DonorRoiReport donors={donors} stockItems={stockItems} />}

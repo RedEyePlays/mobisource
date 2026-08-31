@@ -12,28 +12,32 @@ export default function YieldReport({ stockItems, skus }: { stockItems: StockIte
   return (
     <div>
       {rows.length === 0 ? (
-        <p className="text-gray-500">No stock items yet.</p>
+        <p className="text-muted">No stock items yet.</p>
       ) : (
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b">
-              <th className="py-2 pr-4">Model</th>
-              <th className="py-2 pr-4">Created</th>
-              <th className="py-2 pr-4">Scrapped</th>
-              <th className="py-2 pr-4">Scrap rate</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.model} className="border-b">
-                <td className="py-2 pr-4">{row.model}</td>
-                <td className="py-2 pr-4">{row.totalCreated}</td>
-                <td className="py-2 pr-4">{row.scrapped}</td>
-                <td className="py-2 pr-4 font-medium">{formatPct(row.scrapRate)}</td>
+        <div className="table-wrap">
+          <table className="table-base">
+            <thead>
+              <tr>
+                <th>Model</th>
+                <th>Created</th>
+                <th>Scrapped</th>
+                <th>Scrap rate</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.model}>
+                  <td>{row.model}</td>
+                  <td>{row.totalCreated}</td>
+                  <td>{row.scrapped}</td>
+                  <td>
+                    <span className="num-md">{formatPct(row.scrapRate)}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )

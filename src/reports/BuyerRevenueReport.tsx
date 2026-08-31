@@ -12,26 +12,30 @@ export default function BuyerRevenueReport({ salesOrders, buyers }: { salesOrder
   return (
     <div>
       {rows.length === 0 ? (
-        <p className="text-gray-500">No realized revenue yet.</p>
+        <p className="text-muted">No realized revenue yet.</p>
       ) : (
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b">
-              <th className="py-2 pr-4">Buyer</th>
-              <th className="py-2 pr-4">Orders</th>
-              <th className="py-2 pr-4">Revenue</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.buyerId} className="border-b">
-                <td className="py-2 pr-4">{row.buyerName}</td>
-                <td className="py-2 pr-4">{row.orderCount}</td>
-                <td className="py-2 pr-4 font-medium">{formatCents(row.totalRevenue)}</td>
+        <div className="table-wrap">
+          <table className="table-base">
+            <thead>
+              <tr>
+                <th>Buyer</th>
+                <th>Orders</th>
+                <th>Revenue</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.buyerId}>
+                  <td>{row.buyerName}</td>
+                  <td>{row.orderCount}</td>
+                  <td>
+                    <span className="num-md">{formatCents(row.totalRevenue)}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )

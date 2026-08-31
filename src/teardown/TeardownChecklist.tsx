@@ -3,9 +3,10 @@ import { collection, doc, getDoc, getDocs } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { db, functions } from '../firebase'
 import { allocateDonorCost, mapDonorGradeToProfileGrade } from './allocation'
+import { printHarvestedLabel } from '../printing/printClient'
 import PartRow from './PartRow'
 import type { PartOutcome } from './PartRow'
-import type { Cents, Donor, Sku, TeardownProfile } from '../types'
+import type { Cents, Donor, Sku, StockItem, TeardownProfile } from '../types'
 
 function formatCents(cents: Cents) {
   return `$${(cents / 100).toFixed(2)}`
@@ -15,6 +16,11 @@ interface RowState {
   outcome: PartOutcome
   reason: string
   isExtra: boolean
+}
+
+interface PerformTeardownResult {
+  teardownId: string
+  itemsCreated: string[]
 }
 
 export default function TeardownChecklist({
@@ -35,6 +41,7 @@ export default function TeardownChecklist({
   const [showAddPart, setShowAddPart] = useState(false)
   const [addPartQuery, setAddPartQuery] = useState('')
   const [submitError, setSubmitError] = useState('')
+  const [printWarning, setPrintWarning] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
@@ -147,8 +154,28 @@ export default function TeardownChecklist({
   const canConfirm =
     !submitting && harvestedSkuCodes.length > 0 && !scrappedMissingReason && preview.allocations != null
 
+  // Prints one harvested-part label per stockItem the teardown created —
+  // sellable and scrapped both get a physical stockItem doc (SCHEMA.md §6),
+  // so both get a label. Fetches each created item back from Firestore
+  // rather than trusting the client's own submission order to line up with
+  // the server's itemsCreated array, since a label on the wrong physical
+  // part is a real mistake even though it isn't money math.
+  async function printLabelsFor(itemIds: string[]): Promise<number> {
+    const snaps = await Promise.all(itemIds.map((id) => getDoc(doc(db, 'stockItems', id))))
+    const outcomes = await Promise.allSettled(
+      snaps
+        .filter((snap) => snap.exists())
+        .map((snap) => {
+          const item = snap.data() as StockItem
+          return printHarvestedLabel({ itemId: item.itemId, skuCode: item.skuCode, grade: item.grade, model: donor.model })
+        }),
+    )
+    return outcomes.filter((o) => o.status === 'rejected').length
+  }
+
   async function handleConfirm() {
     setSubmitError('')
+    setPrintWarning('')
     setSubmitting(true)
     try {
       const parts = rowOrder
@@ -162,9 +189,21 @@ export default function TeardownChecklist({
           }
         })
 
-      const performTeardown = httpsCallable(functions, 'performTeardown')
-      await performTeardown({ donorId: donor.id, parts })
-      onDone()
+      const performTeardown = httpsCallable<{ donorId: string; parts: unknown }, PerformTeardownResult>(
+        functions,
+        'performTeardown',
+      )
+      const result = await performTeardown({ donorId: donor.id, parts })
+
+      const failedCount = await printLabelsFor(result.data.itemsCreated)
+      if (failedCount > 0) {
+        const total = result.data.itemsCreated.length
+        setPrintWarning(
+          `Teardown saved. ${failedCount} of ${total} label${total === 1 ? '' : 's'} didn't print — check the print service is running, then reprint from the Inventory list.`,
+        )
+      } else {
+        onDone()
+      }
     } catch (err) {
       setSubmitError((err as Error).message)
     } finally {
@@ -174,7 +213,7 @@ export default function TeardownChecklist({
 
   if (loading) {
     return (
-      <div className="p-4 max-w-lg mx-auto">
+      <div className="mx-auto max-w-lg p-4">
         <p className="text-lg">Loading teardown profile…</p>
       </div>
     )
@@ -182,9 +221,9 @@ export default function TeardownChecklist({
 
   if (loadError || !profile) {
     return (
-      <div className="p-4 max-w-lg mx-auto">
-        <p className="text-red-600 text-lg mb-4">{loadError}</p>
-        <button onClick={onBack} className="w-full border rounded-lg py-4 text-lg">
+      <div className="mx-auto max-w-lg p-4">
+        <p className="text-danger mb-4 text-lg">{loadError}</p>
+        <button onClick={onBack} className="btn-secondary btn-block py-4 text-lg">
           Back to search
         </button>
       </div>
@@ -192,12 +231,12 @@ export default function TeardownChecklist({
   }
 
   return (
-    <div className="p-4 max-w-lg mx-auto pb-32">
-      <button onClick={onBack} className="text-gray-500 mb-2">
+    <div className="mx-auto max-w-lg p-4 pb-32">
+      <button onClick={onBack} className="text-muted mb-2">
         ← Back to search
       </button>
-      <h2 className="text-xl font-semibold">{donor.model}</h2>
-      <p className="text-gray-600 mb-4">
+      <h2 className="page-title text-2xl">{donor.model}</h2>
+      <p className="text-muted mb-4">
         {donor.imei || `IMEI blank — ${donor.imeiBlankReason}`} · Condition {donor.condition} ·{' '}
         {formatCents(donor.purchaseCost)}
       </p>
@@ -225,39 +264,36 @@ export default function TeardownChecklist({
 
       <div className="mt-4">
         {!showAddPart ? (
-          <button
-            onClick={() => setShowAddPart(true)}
-            className="w-full border rounded-lg py-4 text-lg text-gray-700"
-          >
+          <button onClick={() => setShowAddPart(true)} className="btn-secondary btn-block text-slate-700 dark:text-slate-200">
             + Add a part not on this list
           </button>
         ) : (
-          <div className="border rounded-lg p-4">
+          <div className="card p-4">
             <input
               type="text"
               value={addPartQuery}
               onChange={(e) => setAddPartQuery(e.target.value)}
               placeholder="Search SKUs for this model"
               autoFocus
-              className="w-full border rounded-lg px-3 py-3 text-base mb-3"
+              className="input mb-3"
             />
             {addablePartsSkus.length === 0 ? (
-              <p className="text-gray-500">No matching active SKUs to add.</p>
+              <p className="text-muted">No matching active SKUs to add.</p>
             ) : (
-              <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
+              <div className="flex max-h-64 flex-col gap-2 overflow-y-auto">
                 {addablePartsSkus.map((sku) => (
                   <button
                     key={sku.skuCode}
                     onClick={() => addPart(sku)}
-                    className="text-left border rounded-lg px-3 py-3 active:bg-gray-100"
+                    className="card active:bg-slate-100 dark:active:bg-slate-800 px-3 py-3 text-left"
                   >
                     <div className="font-medium">{sku.partType}</div>
-                    <div className="text-sm text-gray-500 font-mono">{sku.skuCode}</div>
+                    <div className="text-muted font-mono text-sm">{sku.skuCode}</div>
                   </button>
                 ))}
               </div>
             )}
-            <button onClick={() => setShowAddPart(false)} className="mt-3 text-gray-500">
+            <button onClick={() => setShowAddPart(false)} className="text-muted mt-3">
               Done adding parts
             </button>
           </div>
@@ -265,37 +301,44 @@ export default function TeardownChecklist({
       </div>
 
       {preview.error && harvestedSkuCodes.length > 0 && (
-        <p className="text-red-600 mt-4">{preview.error}</p>
+        <p className="text-danger mt-4">{preview.error}</p>
       )}
 
       {preview.allocations && (
-        <div className="mt-6 border-t pt-4">
-          <p className="text-lg font-semibold">
+        <div className="mt-6 border-t border-slate-200 pt-4 dark:border-slate-800">
+          <p className="num-lg">
             Total allocated: {formatCents(donor.purchaseCost)} across {preview.allocations.length}{' '}
             {preview.allocations.length === 1 ? 'part' : 'parts'}
           </p>
         </div>
       )}
 
-      {submitError && <p className="text-red-600 mt-4">{submitError}</p>}
+      {submitError && <p className="text-danger mt-4">{submitError}</p>}
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4">
-        <div className="max-w-lg mx-auto">
-          <button
-            onClick={handleConfirm}
-            disabled={!canConfirm}
-            className="w-full bg-black text-white rounded-lg py-4 text-lg font-semibold disabled:opacity-40"
-          >
-            {submitting ? 'Confirming…' : 'Confirm teardown'}
+      {printWarning && (
+        <div className="banner-warning mt-4 flex flex-col gap-2">
+          <p>{printWarning}</p>
+          <button onClick={onDone} className="btn-secondary btn-sm self-start">
+            Continue
           </button>
-          {harvestedSkuCodes.length === 0 && (
-            <p className="text-gray-500 text-sm mt-2 text-center">Mark at least one part harvested to continue.</p>
-          )}
-          {scrappedMissingReason && (
-            <p className="text-red-600 text-sm mt-2 text-center">Every scrapped part needs a reason.</p>
-          )}
         </div>
-      </div>
+      )}
+
+      {!printWarning && (
+        <div className="action-bar">
+          <div className="mx-auto max-w-lg">
+            <button onClick={handleConfirm} disabled={!canConfirm} className="btn-primary btn-block text-lg">
+              {submitting ? 'Confirming…' : 'Confirm teardown'}
+            </button>
+            {harvestedSkuCodes.length === 0 && (
+              <p className="text-muted mt-2 text-center text-sm">Mark at least one part harvested to continue.</p>
+            )}
+            {scrappedMissingReason && (
+              <p className="text-danger mt-2 text-center text-sm">Every scrapped part needs a reason.</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

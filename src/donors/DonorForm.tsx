@@ -83,41 +83,41 @@ export default function DonorForm({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <div className="p-6 max-w-md">
-      <h2 className="text-lg font-semibold mb-4">Intake donor</h2>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        <label className="flex flex-col gap-1">
+    <div className="p-4 sm:p-6 md:mx-auto md:max-w-md">
+      <h2 className="page-title mb-4">Intake donor</h2>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <label className="field">
           Model
-          <input {...field('model')} className="border rounded px-3 py-2" placeholder="IP14P" required />
+          <input {...field('model')} className="input" placeholder="IP14P" required />
         </label>
 
-        <label className="flex flex-col gap-1">
+        <label className="field">
           IMEI (leave blank if unreadable)
-          <input {...field('imei')} className="border rounded px-3 py-2" />
+          <input {...field('imei')} className="input" />
         </label>
 
         {!form.imei && (
-          <label className="flex flex-col gap-1">
+          <label className="field">
             Reason IMEI is blank
-            <input {...field('imeiBlankReason')} className="border rounded px-3 py-2" required />
+            <input {...field('imeiBlankReason')} className="input" required />
           </label>
         )}
 
-        <label className="flex flex-col gap-1">
+        <label className="field">
           Purchase cost
           <input
             {...field('purchaseCost')}
             type="number"
             step="0.01"
             min="0"
-            className="border rounded px-3 py-2"
+            className="input"
             required
           />
         </label>
 
-        <label className="flex flex-col gap-1">
+        <label className="field">
           Purchase currency
-          <select {...field('purchaseCurrency')} className="border rounded px-3 py-2">
+          <select {...field('purchaseCurrency')} className="select">
             {CURRENCIES.map((c) => (
               <option key={c} value={c}>
                 {c}
@@ -127,22 +127,22 @@ export default function DonorForm({ onDone }: { onDone: () => void }) {
         </label>
 
         {form.purchaseCurrency !== 'CAD' && (
-          <label className="flex flex-col gap-1">
+          <label className="field">
             FX rate used (to CAD)
             <input
               {...field('fxRateUsed')}
               type="number"
               step="0.0001"
               min="0"
-              className="border rounded px-3 py-2"
+              className="input"
               required
             />
           </label>
         )}
 
-        <label className="flex flex-col gap-1">
+        <label className="field">
           Source
-          <select {...field('source')} className="border rounded px-3 py-2">
+          <select {...field('source')} className="select">
             {SOURCES.map((s) => (
               <option key={s} value={s}>
                 {s}
@@ -151,14 +151,14 @@ export default function DonorForm({ onDone }: { onDone: () => void }) {
           </select>
         </label>
 
-        <label className="flex flex-col gap-1">
+        <label className="field">
           Supplier ref
-          <input {...field('supplierRef')} className="border rounded px-3 py-2" />
+          <input {...field('supplierRef')} className="input" />
         </label>
 
-        <label className="flex flex-col gap-1">
+        <label className="field">
           Condition (donor grade)
-          <select {...field('condition')} className="border rounded px-3 py-2">
+          <select {...field('condition')} className="select">
             {CONDITIONS.map((c) => (
               <option key={c} value={c}>
                 {c}
@@ -167,22 +167,22 @@ export default function DonorForm({ onDone }: { onDone: () => void }) {
           </select>
         </label>
 
-        {error && <p className="text-red-600 text-sm">{error}</p>}
+        {error && <p className="text-danger text-sm">{error}</p>}
 
         {warning && (
-          <div className="border border-yellow-500 bg-yellow-50 rounded px-3 py-2 text-sm flex flex-col gap-2">
+          <div className="banner-warning flex flex-col gap-2">
             <p>{warning}</p>
-            <button type="button" onClick={onDone} className="self-start border rounded px-3 py-1">
+            <button type="button" onClick={onDone} className="btn-secondary btn-sm self-start">
               Continue anyway
             </button>
           </div>
         )}
 
-        <div className="flex gap-2 mt-2">
-          <button type="submit" disabled={submitting} className="bg-black text-white rounded px-3 py-2 disabled:opacity-50">
+        <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+          <button type="submit" disabled={submitting} className="btn-primary sm:flex-1">
             Save
           </button>
-          <button type="button" onClick={onDone} className="border rounded px-3 py-2">
+          <button type="button" onClick={onDone} className="btn-secondary sm:flex-1">
             Cancel
           </button>
         </div>
