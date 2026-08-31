@@ -10,13 +10,20 @@ import { afterAll, afterEach, beforeAll, describe, it } from 'vitest'
 
 let testEnv: RulesTestEnvironment
 
-const SKU_ID = 'MS-BATT-IP14P-N-AFT'
-const BULK_DOC = {
-  skuCode: SKU_ID,
-  qtyOnHand: 25,
-  avgLandedCost: 1500,
-  lastReceivedAt: new Date('2026-08-31'),
-  reorderPoint: 10,
+const RECEIPT_ID = 'receipt1'
+const RECEIPT_DOC = {
+  receiptId: RECEIPT_ID,
+  supplier: 'Acme Parts',
+  invoiceRef: 'INV-1001',
+  fxRate: 1.37,
+  receivedAt: new Date('2026-08-31'),
+  shippingStatus: 'pending',
+  shippingCurrency: null,
+  shippingTotal: null,
+  shippingTotalCAD: null,
+  shippingAppliedAt: null,
+  totalDiscrepancyCAD: 0,
+  lines: [],
 }
 
 beforeAll(async () => {
@@ -40,28 +47,28 @@ afterAll(async () => {
   await testEnv.cleanup()
 })
 
-describe('bulkStock rules', () => {
+describe('bulkReceipts rules', () => {
   it('denies an unauthenticated read', async () => {
     const db = testEnv.unauthenticatedContext().firestore()
-    await assertFails(getDoc(doc(db, `bulkStock/${SKU_ID}`)))
+    await assertFails(getDoc(doc(db, `bulkReceipts/${RECEIPT_ID}`)))
   })
 
   it('denies a read from an authenticated non-staff client', async () => {
     const db = testEnv.authenticatedContext('user1').firestore()
-    await assertFails(getDoc(doc(db, `bulkStock/${SKU_ID}`)))
+    await assertFails(getDoc(doc(db, `bulkReceipts/${RECEIPT_ID}`)))
   })
 
   it('allows a read from an authenticated staff client', async () => {
     await testEnv.withSecurityRulesDisabled(async (ctx) => {
-      await setDoc(doc(ctx.firestore(), `bulkStock/${SKU_ID}`), BULK_DOC)
+      await setDoc(doc(ctx.firestore(), `bulkReceipts/${RECEIPT_ID}`), RECEIPT_DOC)
     })
 
     const db = testEnv.authenticatedContext('staff1', { staff: true }).firestore()
-    await assertSucceeds(getDoc(doc(db, `bulkStock/${SKU_ID}`)))
+    await assertSucceeds(getDoc(doc(db, `bulkReceipts/${RECEIPT_ID}`)))
   })
 
-  it('denies a write even from staff — bulkStock is only ever written by the receiving callable', async () => {
+  it('denies a write even from staff — receipts are only created/updated by the receiving callables', async () => {
     const db = testEnv.authenticatedContext('staff1', { staff: true }).firestore()
-    await assertFails(setDoc(doc(db, `bulkStock/${SKU_ID}`), BULK_DOC))
+    await assertFails(setDoc(doc(db, `bulkReceipts/${RECEIPT_ID}`), RECEIPT_DOC))
   })
 })
