@@ -8,8 +8,9 @@ import YieldReport from './YieldReport'
 import AgingReportView from './AgingReportView'
 import BuyerRevenueReport from './BuyerRevenueReport'
 import AdjustmentsReport from './AdjustmentsReport'
+import SalesSummaryReport from './SalesSummaryReport'
 
-type ReportTab = 'donorRoi' | 'margin' | 'yield' | 'aging' | 'buyerRevenue' | 'adjustments'
+type ReportTab = 'donorRoi' | 'margin' | 'yield' | 'aging' | 'buyerRevenue' | 'adjustments' | 'salesSummary'
 
 const TABS: { key: ReportTab; label: string }[] = [
   { key: 'donorRoi', label: 'Donor ROI by model' },
@@ -18,6 +19,7 @@ const TABS: { key: ReportTab; label: string }[] = [
   { key: 'aging', label: 'Aging' },
   { key: 'buyerRevenue', label: 'Buyer revenue' },
   { key: 'adjustments', label: 'Adjustments' },
+  { key: 'salesSummary', label: 'Sales summary' },
 ]
 
 export default function Reports() {
@@ -92,6 +94,7 @@ export default function Reports() {
           {tab === 'aging' && <AgingReportView stockItems={stockItems} now={now} />}
           {tab === 'buyerRevenue' && <BuyerRevenueReport salesOrders={salesOrders} buyers={buyers} />}
           {tab === 'adjustments' && <AdjustmentsReport movements={movements} />}
+          {tab === 'salesSummary' && <SalesSummaryReport salesOrders={salesOrders} />}
         </>
       )}
     </div>

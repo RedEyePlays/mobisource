@@ -254,6 +254,7 @@ describe('confirmOrder', () => {
 
     const order = (await db.collection('salesOrders').doc(orderId).get()).data()!
     expect(order.status).toBe('confirmed')
+    expect(order.confirmedAt).not.toBeNull()
 
     const item = (await db.collection('stockItems').doc('item1').get()).data()!
     expect(item.status).toBe('sold')
@@ -265,6 +266,21 @@ describe('confirmOrder', () => {
     )
     expect(movements).toHaveLength(1)
     expect(movements[0]).toMatchObject({ type: 'sale', skuCode: SCRN, itemId: 'item1', qty: -1, unitCost: 16925 })
+  })
+
+  it('leaves confirmedAt null on a still-quoted order, and sets it only at confirm', async () => {
+    await seedSku()
+    await seedItem('item1')
+    await seedBuyer('buyer1')
+    const { orderId } = await createOrder(db, { buyerId: 'buyer1', itemIds: ['item1'] })
+
+    const quoted = (await db.collection('salesOrders').doc(orderId).get()).data()!
+    expect(quoted.confirmedAt).toBeNull()
+
+    await confirmOrder(db, { orderId })
+
+    const confirmed = (await db.collection('salesOrders').doc(orderId).get()).data()!
+    expect(confirmed.confirmedAt).not.toBeNull()
   })
 
   it('rolls back entirely when confirmed twice — no partial writes on the second attempt', async () => {

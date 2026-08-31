@@ -202,6 +202,7 @@ export interface SalesOrder {
   total: Cents
   status: SalesOrderStatus
   createdAt: Timestamp
+  confirmedAt: Timestamp | null
   paymentMethod: PaymentMethod | null
 }
 

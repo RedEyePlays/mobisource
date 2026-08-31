@@ -6,6 +6,7 @@ import {
   buyerRevenue,
   donorRoiByModel,
   marginBySku,
+  salesSummaryByPaymentMethod,
   yieldRateByModel,
 } from './aggregations'
 import type {
@@ -13,6 +14,7 @@ import type {
   BuyerInput,
   DonorRoiInput,
   SalesOrderForRevenue,
+  SalesOrderForSummary,
   SkuModelInput,
   StockItemForAging,
   StockItemForMargin,
@@ -366,6 +368,93 @@ describe('buyerRevenue', () => {
       buyers,
     )
     expect(rows.map((r) => r.buyerId)).toEqual(['buyer1', 'small'])
+  })
+})
+
+describe('salesSummaryByPaymentMethod', () => {
+  const RANGE = { from: new Date('2026-08-01T00:00:00Z'), to: new Date('2026-08-31T23:59:59.999Z') }
+
+  const order = (overrides: Partial<SalesOrderForSummary> = {}): SalesOrderForSummary => ({
+    paymentMethod: 'cash',
+    confirmedAt: fakeTimestamp(new Date('2026-08-15T12:00:00Z')),
+    subtotal: cents(1000),
+    tax: cents(130),
+    total: cents(1130),
+    status: 'confirmed',
+    ...overrides,
+  })
+
+  it('groups a cash order into the cash bucket', () => {
+    const report = salesSummaryByPaymentMethod([order()], RANGE)
+    expect(report.byMethod).toEqual([
+      { method: 'cash', orderCount: 1, subtotal: 1000, tax: 130, total: 1130 },
+      { method: 'card', orderCount: 0, subtotal: 0, tax: 0, total: 0 },
+      { method: 'eTransfer', orderCount: 0, subtotal: 0, tax: 0, total: 0 },
+      { method: 'account', orderCount: 0, subtotal: 0, tax: 0, total: 0 },
+    ])
+    expect(report.grandTotal).toEqual({ orderCount: 1, subtotal: 1000, tax: 130, total: 1130 })
+  })
+
+  it('buckets a null paymentMethod as account', () => {
+    const report = salesSummaryByPaymentMethod([order({ paymentMethod: null })], RANGE)
+    expect(report.byMethod.find((r) => r.method === 'account')).toMatchObject({ orderCount: 1 })
+  })
+
+  it('sums multiple orders in the same bucket', () => {
+    const report = salesSummaryByPaymentMethod(
+      [order({ paymentMethod: 'card', subtotal: cents(500), tax: cents(65), total: cents(565) }),
+       order({ paymentMethod: 'card', subtotal: cents(300), tax: cents(39), total: cents(339) })],
+      RANGE,
+    )
+    expect(report.byMethod.find((r) => r.method === 'card')).toEqual({
+      method: 'card', orderCount: 2, subtotal: 800, tax: 104, total: 904,
+    })
+  })
+
+  it('excludes a quoted order — it never happened yet', () => {
+    const report = salesSummaryByPaymentMethod([order({ status: 'quoted', confirmedAt: null })], RANGE)
+    expect(report.grandTotal.orderCount).toBe(0)
+  })
+
+  it('counts shipped and paid the same as confirmed', () => {
+    const report = salesSummaryByPaymentMethod(
+      [order({ status: 'shipped' }), order({ status: 'paid' })],
+      RANGE,
+    )
+    expect(report.grandTotal.orderCount).toBe(2)
+  })
+
+  it('excludes an order confirmed before the range', () => {
+    const report = salesSummaryByPaymentMethod(
+      [order({ confirmedAt: fakeTimestamp(new Date('2026-07-31T23:59:59Z')) })],
+      RANGE,
+    )
+    expect(report.grandTotal.orderCount).toBe(0)
+  })
+
+  it('excludes an order confirmed after the range', () => {
+    const report = salesSummaryByPaymentMethod(
+      [order({ confirmedAt: fakeTimestamp(new Date('2026-09-01T00:00:01Z')) })],
+      RANGE,
+    )
+    expect(report.grandTotal.orderCount).toBe(0)
+  })
+
+  it('includes orders confirmed exactly at the range boundaries', () => {
+    const report = salesSummaryByPaymentMethod(
+      [order({ confirmedAt: fakeTimestamp(RANGE.from) }), order({ confirmedAt: fakeTimestamp(RANGE.to) })],
+      RANGE,
+    )
+    expect(report.grandTotal.orderCount).toBe(2)
+  })
+
+  it('groups a wholesale quote by its confirm date, not its (earlier) quote date', () => {
+    // Quoted in July, confirmed in August — belongs in the August summary.
+    const report = salesSummaryByPaymentMethod(
+      [order({ confirmedAt: fakeTimestamp(new Date('2026-08-05T00:00:00Z')) })],
+      RANGE,
+    )
+    expect(report.grandTotal.orderCount).toBe(1)
   })
 })
 

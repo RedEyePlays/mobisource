@@ -264,6 +264,10 @@ taxStatus        string    the buyer's taxStatus *as of confirm* — snapshotted
 total            number    cents — subtotal + tax
 status           string    quoted | confirmed | shipped | paid | cancelled — see §14
 createdAt        timestamp
+confirmedAt      timestamp | null — set once, by confirmOrder; null while
+                            'quoted'. Date-range reports (§16/§17/§18) group
+                            by this, not createdAt, since a wholesale quote
+                            can sit for days before it's confirmed.
 paymentMethod    string    cash | card | eTransfer | null — see §8
 ```
 
@@ -967,3 +971,24 @@ reason })`.
 `adjust` movement — when, which SKU/item, the qty delta, and why —
 newest first, straight off the ledger; nothing else needed to compute
 "what was corrected."
+
+---
+
+## 16. Sales summary report
+
+`Reports` → Sales summary. Realized orders (`confirmed | shipped | paid`
+— same filter as Buyer revenue, §9) over a date range, grouped by how
+they were paid:
+
+```
+cash | card | eTransfer | account
+```
+
+`account` is the bucket for `paymentMethod: null` — an on-account
+wholesale order, never a cash-register payment (§8). Each row shows order
+count, subtotal, HST, and total; a grand-total row sums across all four.
+All four rows always show, even at zero, so the report reads the same
+shape regardless of what happened in the range.
+
+Grouped by `confirmedAt`, inclusive of both ends of the picked range —
+see §3's note on why that's the field, not `createdAt`.

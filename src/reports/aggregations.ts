@@ -1,4 +1,4 @@
-import type { Cents, DonorStatus, SalesOrderStatus, StockItemStatus } from '../types'
+import type { Cents, DonorStatus, PaymentMethod, SalesOrderStatus, StockItemStatus } from '../types'
 import { cents } from '../types'
 
 // ---------------------------------------------------------------------------
@@ -367,6 +367,99 @@ export function buyerRevenue(salesOrders: SalesOrderForRevenue[], buyers: BuyerI
   }))
 
   return rows.sort((a, b) => b.totalRevenue - a.totalRevenue)
+}
+
+// ---------------------------------------------------------------------------
+// Sales summary by payment method — docs/SCHEMA.md §16. Groups realized
+// orders (same confirmed/shipped/paid filter as buyerRevenue) over a date
+// range by how they were paid — cash/card/eTransfer straight off
+// `paymentMethod`, plus a synthetic 'account' bucket for a null
+// paymentMethod (an on-account wholesale order, never a cash-register
+// payment — docs/SCHEMA.md §3).
+//
+// Grouped by `confirmedAt`, not `createdAt` — a wholesale quote can sit for
+// days before it's confirmed, so `createdAt` would misattribute the sale to
+// the day it was *quoted* rather than the day it actually happened.
+// `confirmedAt` is null for a still-quoted order, which the realized-status
+// filter already excludes, but it's checked explicitly for the pathological
+// case of a mid-migration doc with a realized status and no confirmedAt.
+// ---------------------------------------------------------------------------
+
+export type PaymentMethodBucket = 'cash' | 'card' | 'eTransfer' | 'account'
+
+const PAYMENT_METHOD_BUCKETS: readonly PaymentMethodBucket[] = ['cash', 'card', 'eTransfer', 'account']
+
+export interface SalesOrderForSummary {
+  paymentMethod: PaymentMethod | null
+  confirmedAt: TimestampLike | null
+  subtotal: Cents
+  tax: Cents
+  total: Cents
+  status: SalesOrderStatus
+}
+
+export interface PaymentMethodSummaryRow {
+  method: PaymentMethodBucket
+  orderCount: number
+  subtotal: Cents
+  tax: Cents
+  total: Cents
+}
+
+export interface SalesSummaryTotals {
+  orderCount: number
+  subtotal: Cents
+  tax: Cents
+  total: Cents
+}
+
+export interface SalesSummaryReport {
+  byMethod: PaymentMethodSummaryRow[]
+  grandTotal: SalesSummaryTotals
+}
+
+/** `range` is inclusive at both ends — the caller is responsible for setting `to` to the end of its last day if the range is meant to cover whole days. */
+export function salesSummaryByPaymentMethod(
+  salesOrders: SalesOrderForSummary[],
+  range: { from: Date; to: Date },
+): SalesSummaryReport {
+  const totals = new Map<PaymentMethodBucket, { orderCount: number; subtotal: number; tax: number; total: number }>(
+    PAYMENT_METHOD_BUCKETS.map((method) => [method, { orderCount: 0, subtotal: 0, tax: 0, total: 0 }]),
+  )
+
+  const fromMs = range.from.getTime()
+  const toMs = range.to.getTime()
+
+  for (const order of salesOrders) {
+    if (!(REALIZED_ORDER_STATUSES as readonly string[]).includes(order.status)) continue
+    if (!order.confirmedAt) continue
+    const confirmedAtMs = order.confirmedAt.toDate().getTime()
+    if (confirmedAtMs < fromMs || confirmedAtMs > toMs) continue
+
+    const bucket: PaymentMethodBucket = order.paymentMethod ?? 'account'
+    const row = totals.get(bucket)!
+    row.orderCount += 1
+    row.subtotal += order.subtotal
+    row.tax += order.tax
+    row.total += order.total
+  }
+
+  const byMethod: PaymentMethodSummaryRow[] = PAYMENT_METHOD_BUCKETS.map((method) => {
+    const t = totals.get(method)!
+    return { method, orderCount: t.orderCount, subtotal: cents(t.subtotal), tax: cents(t.tax), total: cents(t.total) }
+  })
+
+  const grandTotal: SalesSummaryTotals = byMethod.reduce(
+    (sum, row) => ({
+      orderCount: sum.orderCount + row.orderCount,
+      subtotal: cents(sum.subtotal + row.subtotal),
+      tax: cents(sum.tax + row.tax),
+      total: cents(sum.total + row.total),
+    }),
+    { orderCount: 0, subtotal: cents(0), tax: cents(0), total: cents(0) },
+  )
+
+  return { byMethod, grandTotal }
 }
 
 // ---------------------------------------------------------------------------

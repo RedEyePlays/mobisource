@@ -252,6 +252,8 @@ export interface SalesOrder {
   total: Cents
   status: SalesOrderStatus
   createdAt: Timestamp
+  /** Set by confirmOrder, once, the moment the sale actually happens — null while still 'quoted'. A wholesale quote can sit for days before confirm, so this (not createdAt) is what date-range reports (§16/§17/§18) group by; it never moves again after that first confirm. */
+  confirmedAt: Timestamp | null
   /** Set by confirmOrder; null until confirmed, and stays null for an on-account order with no cash-register payment. */
   paymentMethod: PaymentMethod | null
 }

@@ -191,6 +191,7 @@ export async function createOrder(
       total,
       status: 'quoted',
       createdAt: FieldValue.serverTimestamp(),
+      confirmedAt: null,
       paymentMethod: null,
     }
     tx.set(orderRef, order)
