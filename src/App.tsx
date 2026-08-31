@@ -9,15 +9,16 @@ import BuyerList from './buyers/BuyerList'
 import BuyerForm from './buyers/BuyerForm'
 import OrderList from './orders/OrderList'
 import OrderBuilder from './orders/OrderBuilder'
+import ReturnForm from './orders/ReturnForm'
 import StockList from './inventory/StockList'
 import Reports from './reports/Reports'
 import TeardownScreen from './teardown/TeardownScreen'
 import ReceivingScreen from './receiving/ReceivingScreen'
 import PosScreen from './pos/PosScreen'
-import type { Buyer, Sku } from './types'
+import type { Buyer, SalesOrder, Sku } from './types'
 
 type Section = 'pos' | 'inventory' | 'donors' | 'teardown' | 'skus' | 'buyers' | 'orders' | 'receiving' | 'reports'
-type View = 'list' | 'form'
+type View = 'list' | 'form' | 'return'
 
 const NAV: { key: Section; label: string }[] = [
   { key: 'pos', label: 'Sell' },
@@ -36,6 +37,7 @@ function AppShell() {
   const [section, setSection] = useState<Section>('pos')
   const [view, setView] = useState<View>('list')
   const [editingRecord, setEditingRecord] = useState<Sku | Buyer | null>(null)
+  const [returningOrder, setReturningOrder] = useState<SalesOrder | null>(null)
 
   if (loading) {
     return null
@@ -57,6 +59,7 @@ function AppShell() {
     setSection(next)
     setView('list')
     setEditingRecord(null)
+    setReturningOrder(null)
   }
 
   return (
@@ -114,8 +117,19 @@ function AppShell() {
         <BuyerForm buyer={editingRecord as Buyer | null} onDone={() => setView('list')} />
       )}
 
-      {section === 'orders' && view === 'list' && <OrderList onCreate={() => setView('form')} />}
+      {section === 'orders' && view === 'list' && (
+        <OrderList
+          onCreate={() => setView('form')}
+          onReturn={(order) => {
+            setReturningOrder(order)
+            setView('return')
+          }}
+        />
+      )}
       {section === 'orders' && view === 'form' && <OrderBuilder onDone={() => setView('list')} />}
+      {section === 'orders' && view === 'return' && returningOrder && (
+        <ReturnForm order={returningOrder} onDone={() => setView('list')} />
+      )}
 
       {section === 'receiving' && <ReceivingScreen />}
 

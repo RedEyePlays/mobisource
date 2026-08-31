@@ -717,3 +717,141 @@ line (rate + amount), and total.
 
 Downloadable from the sales-order list (`OrderList`) for any order past
 `quoted` status.
+
+---
+
+## 13. Returns and DOA
+
+A return is one event against a **confirmed** order, made up of one or more
+lines — each with its own quantity, reason, and disposition. An order can
+have several separate return events over time (a partial DOA today, a
+different partial return next week), so `returns` uses an auto-generated
+doc ID rather than `orderId`.
+
+```
+returns/{returnId}
+  returnId       string
+  orderId        string
+  lines          array     [{ skuCode, itemId?, qty, reason, disposition,
+                              unitPrice, unitCost }]
+  subtotal       number    cents — Σ unitPrice × qty across all returned
+                            lines, refunded regardless of disposition
+  taxRateBps     number    copied from the order's frozen taxRateBps
+  tax            number    cents — the proportional tax reversed
+  total          number    cents — subtotal + tax, the amount credited
+  createdAt      timestamp
+```
+
+`reason`: `DOA | wrongPart | changedMind`. `disposition`: `restock |
+writeOff`, chosen independently per line — a DOA part can still be
+restocked (e.g. it's fine, the buyer just didn't want it) and a
+changed-mind return could still be written off if it comes back damaged.
+`itemId` is set for a serialized line (`qty` always 1); omitted for a bulk
+line. `unitPrice`/`unitCost` are snapshotted from the matching order line
+at return time — never re-derived.
+
+**A return requires an invoice to already exist for the order.**
+`issueInvoice` runs in its own transaction and can't be nested inside
+`processReturn`'s, so if no invoice has been issued yet, `processReturn`
+rejects rather than trying to issue one inline.
+
+**Quantity tracking across multiple return events:** `processReturn`
+reads every prior `returns` doc for the order (inside its own transaction,
+so this is race-safe against a second concurrent return) and sums already-
+returned qty per line, keyed by `itemId` for a serialized line or
+`skuCode` for a bulk line. A request is rejected if it would return more
+than the order line's original qty.
+
+### Restock vs write-off
+
+**Restock (serialized):** `stockItems.status` goes `sold → inStock`,
+`soldPrice`/`soldDate`/`buyerId` cleared — the unit becomes ordinary
+sellable stock again, **at its original `allocatedCost`**, which was never
+mutated by the sale in the first place, so there's nothing to recompute.
+
+**Restock (bulk):** `bulkStock.qtyOnHand += qty`. Decision made without
+asking: `avgLandedCost` is re-blended — `(currentQty × currentAvg +
+returnedQty × line.unitCost) / (currentQty + returnedQty)` — the same
+qty-weighted-average shape `receiveBulkShipment` (§7) already uses,
+applied to a return instead of a receipt. The alternative (leave
+`avgLandedCost` untouched) would silently value the returned units at
+whatever the *current* average happens to be instead of what they actually
+cost, which only stays correct by coincidence.
+
+**Write-off (serialized):** `stockItems.status` goes `sold → returned` —
+**not** `scrapped`. `soldPrice`/`soldDate`/`buyerId` are kept, not
+cleared, as history. This is a hard distinction from a teardown scrap
+(`scrapped`, §6, never sold, `allocatedCost` normally 0): `returned` marks
+a unit that **was** sold, refunded, and never recovered — see the margin
+report fix below.
+
+**Write-off (bulk):** no `bulkStock` change at all — the units left the
+count when they were sold (§8) and a write-off doesn't bring them back.
+
+### Ledger
+
+Every returned unit writes a `return` movement (never edits the original
+`sale` row):
+
+```
+restock (serialized)   qty +1     — reverses the sale's qty -1
+restock (bulk)          qty +qty   — reverses the sale's qty -qty
+writeOff (any)           qty 0      — nothing about counted stock changes;
+                                       the row exists purely as an audit
+                                       trail entry (reason/disposition in
+                                       `note`)
+```
+
+### Credit notes
+
+```
+creditNotes/{returnId}   -- doc ID = the return event's own id (1:1)
+  creditNoteId     string
+  creditNoteNumber number    sequential, gap-free, never reused — its own
+                              counter (counters/creditNotes), independent
+                              of invoice numbers
+  returnId         string
+  orderId          string
+  invoiceNumber    number    the invoice this credit note reverses,
+                              snapshotted at return time
+  issuedAt         timestamp
+  business, buyerName, buyerTerms   snapshotted from the invoice directly
+                              (not re-read from config/buyers) — a credit
+                              note should always agree with the invoice it
+                              credits
+  lines            array     [{ skuCode, description, qty, unitPrice,
+                              lineTotal }] — description reused from the
+                              invoice's own line, same reasoning as above
+  subtotal, taxRateBps, tax, total   the amount credited (see below)
+```
+
+**Reversing the proportional tax:** decision made without asking —
+`tax = calculateTax({ subtotal: <returned lines' subtotal>, taxStatus:
+order.taxStatus, rateBps: order.taxRateBps }).tax`, i.e. the same tax
+function applied fresh to the returned portion's own subtotal, at the
+order's frozen rate. This is exactly "the proportional tax" for a flat
+single-rate order (there's only one rate per order, so tax on any slice of
+the subtotal is that slice times the rate) and avoids the alternative —
+computing a fraction of the original order's already-rounded tax — which
+would drift under repeated partial returns.
+
+`getCreditNotePdf({ returnId })` renders the frozen `creditNotes/{returnId}`
+doc to PDF, the same fresh-every-call, frozen-record pattern as
+`getInvoicePdf` (§12).
+
+### Margin report
+
+`marginBySku` (§9) now also folds in `stockItems` with `status: 'returned'`
+(kept `soldPrice` = its history of having sold) as a pure loss: **$0
+revenue, its full `allocatedCost` still charged**, tallied separately as
+`returnedCount` rather than `soldCount`. Without this, a written-off return
+would just vanish from the report the moment its status left `sold` — no
+revenue, but no cost either — making a SKU with heavy DOA look exactly
+like it was never sold, instead of like it lost money. A **restocked**
+return needs no special handling: it goes back to `inStock`, correctly
+falls out of the sold set, and is counted in `inStockCount` like any other
+unit — the sale really is void, so nothing should look like a loss there.
+
+Bulk returns are outside `marginBySku`'s scope, same as bulk sales
+already are (§8's "Known gap") — bulk items have no per-unit
+`stockItems` doc for the report to key off of.

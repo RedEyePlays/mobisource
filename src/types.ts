@@ -55,6 +55,8 @@ export type BuyerTaxStatus = 'taxable' | 'exempt' | 'zeroRated'
 export type SalesOrderStatus = 'quoted' | 'confirmed' | 'shipped' | 'paid'
 export type PaymentMethod = 'cash' | 'card' | 'eTransfer'
 export type TeardownProfileGrade = 'AB' | 'CD'
+export type ReturnReason = 'DOA' | 'wrongPart' | 'changedMind'
+export type ReturnDisposition = 'restock' | 'writeOff'
 
 // ---------------------------------------------------------------------------
 // Firestore document shapes actually read/written by the frontend.

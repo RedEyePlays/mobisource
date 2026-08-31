@@ -136,6 +136,7 @@ describe('marginBySku', () => {
         skuCode: 'MS-SCRN-IP14P-A-PULL',
         soldCount: 1,
         inStockCount: 0,
+        returnedCount: 0,
         totalRevenue: 20000,
         totalCost: 16925,
         totalMargin: 3075,
@@ -155,6 +156,7 @@ describe('marginBySku', () => {
         skuCode: 'MS-SCRN-IP14P-A-PULL',
         soldCount: 0,
         inStockCount: 2,
+        returnedCount: 0,
         totalRevenue: 0,
         totalCost: 0,
         totalMargin: 0,
@@ -162,6 +164,36 @@ describe('marginBySku', () => {
         marginPct: null,
       },
     ])
+  })
+
+  it('counts a restocked return (status back to inStock) as unsold, not as a loss', () => {
+    // A restocked return clears soldPrice (processReturn.ts) — it's sellable
+    // again, indistinguishable from any other inStock unit.
+    const rows = marginBySku([item({ status: 'inStock', soldPrice: null })])
+    expect(rows[0]).toMatchObject({ soldCount: 0, inStockCount: 1, returnedCount: 0, totalRevenue: 0, totalCost: 0 })
+  })
+
+  it('folds a written-off return (status returned, soldPrice kept as history) into cost with zero revenue', () => {
+    const rows = marginBySku([
+      item({ status: 'sold', soldPrice: cents(20000), allocatedCost: cents(16925) }),
+      item({ status: 'returned', soldPrice: cents(20000), allocatedCost: cents(16925) }),
+    ])
+    expect(rows[0]).toMatchObject({
+      soldCount: 1,
+      returnedCount: 1,
+      totalRevenue: 20000, // only the genuine sale counts as revenue
+      totalCost: 16925 * 2, // both units' cost was spent; the returned one earned nothing back
+      totalMargin: 20000 - 16925 * 2,
+    })
+  })
+
+  it('excludes a teardown-scrapped item (never sold) from the returned-loss count', () => {
+    // Distinguishes 'scrapped' (never sold, docs/SCHEMA.md §6) from
+    // 'returned' (sold, then written off, §13) — the former is a normal,
+    // separately-handled write-off with allocatedCost 0 (§4's redistribution),
+    // not a margin loss on a sale that happened.
+    const rows = marginBySku([item({ status: 'scrapped', soldPrice: null, allocatedCost: cents(0) })])
+    expect(rows[0]).toMatchObject({ soldCount: 0, returnedCount: 0, totalCost: 0 })
   })
 
   it('surfaces a negative margin when an item sold for less than its allocated cost', () => {

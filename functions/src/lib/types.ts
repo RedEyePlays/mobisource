@@ -391,3 +391,74 @@ export interface Invoice {
 export interface InvoiceCounter {
   last: number
 }
+
+// ---------------------------------------------------------------------------
+// `returns` / `creditNotes` (docs/SCHEMA.md §13) — a return is one event
+// against a confirmed order, per line, each with its own reason and
+// disposition. `stockItems.status: 'returned'` (§3) is reserved for a
+// write-off return specifically — distinct from 'scrapped' (a teardown
+// write-off that never sold), so a returned-and-written-off item is
+// identifiable in reports as "sold, refunded, never recovered" rather than
+// looking like it was never sold at all.
+// ---------------------------------------------------------------------------
+
+/** docs/SCHEMA.md §13 `returns.lines[].reason`. */
+export type ReturnReason = 'DOA' | 'wrongPart' | 'changedMind'
+
+/** docs/SCHEMA.md §13 `returns.lines[].disposition` — chosen per line, independent of reason. */
+export type ReturnDisposition = 'restock' | 'writeOff'
+
+/** One row of `returns.lines`. unitPrice/unitCost are snapshotted from the matching order line — never re-derived. */
+export interface ReturnLine {
+  skuCode: string
+  /** Set for a serialized line (qty is always 1); omitted for a bulk line. */
+  itemId?: string
+  qty: number
+  reason: ReturnReason
+  disposition: ReturnDisposition
+  unitPrice: Cents
+  unitCost: Cents
+}
+
+/** `returns/{returnId}` — auto-id, since one order can have several separate return events over time. */
+export interface Return {
+  returnId: string
+  orderId: string
+  lines: ReturnLine[]
+  /** Σ unitPrice × qty across all returned lines — the refunded amount before tax, regardless of each line's disposition (a write-off still refunds the buyer; disposition only decides what happens to the physical/bulk unit). */
+  subtotal: Cents
+  /** Copied from the order's frozen taxRateBps — never re-looked-up, for the same reason an order's own tax is frozen (§11). */
+  taxRateBps: number
+  /** The proportional tax reversed — calculateTax() applied to this return's own subtotal at the order's frozen rate, not a fraction of the order's original tax (avoids compounding rounding across partial returns). */
+  tax: Cents
+  total: Cents
+  createdAt: Timestamp
+}
+
+/** One row of `creditNotes.lines` — same shape as an invoice line. */
+export type CreditNoteLine = InvoiceLine
+
+/** `creditNotes/{returnId}` — doc ID is the return event's own id (one return has exactly one credit note). A frozen record, like `invoices` — see issueInvoice.ts / processReturn.ts. */
+export interface CreditNote {
+  creditNoteId: string
+  /** Sequential, gap-free, never reused — its own counter, separate from invoice numbers. */
+  creditNoteNumber: number
+  returnId: string
+  orderId: string
+  /** The invoice this credit note reverses, snapshotted from invoices/{orderId} at the moment of return. */
+  invoiceNumber: number
+  issuedAt: Timestamp
+  business: BusinessConfig
+  buyerName: string
+  buyerTerms: BuyerTerms
+  lines: CreditNoteLine[]
+  subtotal: Cents
+  taxRateBps: number
+  tax: Cents
+  total: Cents
+}
+
+/** `counters/creditNotes` — same shape and guarantee as InvoiceCounter, but its own independent sequence. */
+export interface CreditNoteCounter {
+  last: number
+}

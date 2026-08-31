@@ -25,6 +25,7 @@ export default function MarginReport({ stockItems }: { stockItems: StockItem[] }
                 <th>SKU</th>
                 <th>Sold</th>
                 <th>Still inStock</th>
+                <th>Returned (DOA)</th>
                 <th>Revenue</th>
                 <th>Cost</th>
                 <th>Margin</th>
@@ -38,6 +39,7 @@ export default function MarginReport({ stockItems }: { stockItems: StockItem[] }
                   <td className="font-mono text-sm">{row.skuCode}</td>
                   <td>{row.soldCount}</td>
                   <td>{row.inStockCount}</td>
+                  <td className={row.returnedCount > 0 ? 'text-danger' : undefined}>{row.returnedCount}</td>
                   <td>{formatCents(row.totalRevenue)}</td>
                   <td>{formatCents(row.totalCost)}</td>
                   <td>

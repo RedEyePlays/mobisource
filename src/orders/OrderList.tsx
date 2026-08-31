@@ -12,7 +12,7 @@ function margin(order: SalesOrder): Cents {
   return order.lines.reduce((sum, line) => sum + (line.unitPrice - line.unitCost) * line.qty, 0) as Cents
 }
 
-export default function OrderList({ onCreate }: { onCreate: () => void }) {
+export default function OrderList({ onCreate, onReturn }: { onCreate: () => void; onReturn: (order: SalesOrder) => void }) {
   const [orders, setOrders] = useState<SalesOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -102,14 +102,19 @@ export default function OrderList({ onCreate }: { onCreate: () => void }) {
                   </td>
                   <td>
                     {order.status !== 'quoted' && (
-                      <button
-                        type="button"
-                        disabled={downloadingId === order.orderId}
-                        onClick={() => void handleDownloadInvoice(order.orderId)}
-                        className="btn-secondary btn-sm"
-                      >
-                        {downloadingId === order.orderId ? '…' : 'Download invoice'}
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          disabled={downloadingId === order.orderId}
+                          onClick={() => void handleDownloadInvoice(order.orderId)}
+                          className="btn-secondary btn-sm"
+                        >
+                          {downloadingId === order.orderId ? '…' : 'Download invoice'}
+                        </button>
+                        <button type="button" onClick={() => onReturn(order)} className="btn-secondary btn-sm">
+                          Process return
+                        </button>
+                      </div>
                     )}
                   </td>
                 </tr>
