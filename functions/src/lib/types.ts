@@ -74,6 +74,7 @@ export type MovementType =
   | 'scrap'
   | 'adjust'
   | 'transfer'
+  | 'release'
 
 /** docs/SCHEMA.md §3 `stockMovements.brand`. */
 export type MovementBrand = 'mobisource' | 'flipthattech'
@@ -90,8 +91,8 @@ export type BuyerTerms = 'prepay' | 'net7' | 'net15'
 /** docs/SCHEMA.md §3 `buyers.taxStatus` — default 'taxable'. exempt/zeroRated both charge 0 HST; kept as separate statuses since they mean different things on a real return, even though this codebase treats them identically today (see calculateTax.ts). */
 export type BuyerTaxStatus = 'taxable' | 'exempt' | 'zeroRated'
 
-/** docs/SCHEMA.md §3 `salesOrders.status`. */
-export type SalesOrderStatus = 'quoted' | 'confirmed' | 'shipped' | 'paid'
+/** docs/SCHEMA.md §3 `salesOrders.status` — 'cancelled' is terminal, from either an explicit cancelOrder or the 7-day auto-expiry sweep (§14). */
+export type SalesOrderStatus = 'quoted' | 'confirmed' | 'shipped' | 'paid' | 'cancelled'
 
 /** docs/SCHEMA.md §3 `salesOrders.paymentMethod` — captured at confirm time for a counter sale; null for an on-account wholesale order. */
 export type PaymentMethod = 'cash' | 'card' | 'eTransfer'

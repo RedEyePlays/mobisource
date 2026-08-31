@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { collection, getDocs, orderBy, query } from 'firebase/firestore'
-import { db } from '../firebase'
+import { httpsCallable } from 'firebase/functions'
+import { db, functions } from '../firebase'
 import { downloadInvoicePdf } from './downloadInvoice'
 import type { Cents, SalesOrder } from '../types'
 
@@ -12,22 +13,48 @@ function margin(order: SalesOrder): Cents {
   return order.lines.reduce((sum, line) => sum + (line.unitPrice - line.unitCost) * line.qty, 0) as Cents
 }
 
+const DAY_MS = 1000 * 60 * 60 * 24
+
+// Informational only — the 7-day auto-expiry sweep re-derives age itself,
+// server-side, at run time (docs/SCHEMA.md §14).
+function quoteAgeDays(order: SalesOrder): number {
+  return Math.floor((Date.now() - order.createdAt.toDate().getTime()) / DAY_MS)
+}
+
 export default function OrderList({ onCreate, onReturn }: { onCreate: () => void; onReturn: (order: SalesOrder) => void }) {
   const [orders, setOrders] = useState<SalesOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshKey, setRefreshKey] = useState(0)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
-  const [downloadError, setDownloadError] = useState('')
+  const [actionError, setActionError] = useState('')
+  const [cancellingId, setCancellingId] = useState<string | null>(null)
 
   async function handleDownloadInvoice(orderId: string) {
-    setDownloadError('')
+    setActionError('')
     setDownloadingId(orderId)
     try {
       await downloadInvoicePdf(orderId)
     } catch (err) {
-      setDownloadError((err as Error).message)
+      setActionError((err as Error).message)
     } finally {
       setDownloadingId(null)
+    }
+  }
+
+  async function handleCancelQuote(orderId: string) {
+    setActionError('')
+    setCancellingId(orderId)
+    try {
+      const cancelOrder = httpsCallable<{ orderId: string }, { orderId: string; status: string }>(
+        functions,
+        'cancelOrder',
+      )
+      await cancelOrder({ orderId })
+      setRefreshKey((k) => k + 1)
+    } catch (err) {
+      setActionError((err as Error).message)
+    } finally {
+      setCancellingId(null)
     }
   }
 
@@ -63,7 +90,7 @@ export default function OrderList({ onCreate, onReturn }: { onCreate: () => void
         </div>
       </div>
 
-      {downloadError && <p className="banner-danger mb-3">{downloadError}</p>}
+      {actionError && <p className="banner-danger mb-3">{actionError}</p>}
 
       {loading ? (
         <p className="text-muted">Loading…</p>
@@ -77,6 +104,7 @@ export default function OrderList({ onCreate, onReturn }: { onCreate: () => void
                 <th>Order</th>
                 <th>Buyer</th>
                 <th>Status</th>
+                <th>Age</th>
                 <th>Payment</th>
                 <th>Tax</th>
                 <th>Total</th>
@@ -90,6 +118,15 @@ export default function OrderList({ onCreate, onReturn }: { onCreate: () => void
                   <td className="font-mono text-sm">{order.orderId}</td>
                   <td>{order.buyerId}</td>
                   <td>{order.status}</td>
+                  <td>
+                    {order.status === 'quoted' ? (
+                      <span className={quoteAgeDays(order) >= 7 ? 'text-danger' : undefined}>
+                        {quoteAgeDays(order)}d
+                      </span>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
                   <td>{order.paymentMethod ?? '—'}</td>
                   <td>
                     <span className="num-md">{formatCents(order.tax)}</span>
@@ -101,7 +138,17 @@ export default function OrderList({ onCreate, onReturn }: { onCreate: () => void
                     <span className="num-md">{formatCents(margin(order))}</span>
                   </td>
                   <td>
-                    {order.status !== 'quoted' && (
+                    {order.status === 'quoted' && (
+                      <button
+                        type="button"
+                        disabled={cancellingId === order.orderId}
+                        onClick={() => void handleCancelQuote(order.orderId)}
+                        className="btn-secondary btn-sm"
+                      >
+                        {cancellingId === order.orderId ? '…' : 'Cancel quote'}
+                      </button>
+                    )}
+                    {order.status !== 'quoted' && order.status !== 'cancelled' && (
                       <div className="flex gap-2">
                         <button
                           type="button"

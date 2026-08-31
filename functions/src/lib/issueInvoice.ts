@@ -3,6 +3,8 @@ import { Timestamp } from 'firebase-admin/firestore'
 import { cents } from './types.js'
 import type { Buyer, BusinessConfig, Invoice, InvoiceCounter, InvoiceLine, SalesOrder, Sku } from './types.js'
 
+const REALIZED_ORDER_STATUSES: readonly SalesOrder['status'][] = ['confirmed', 'shipped', 'paid']
+
 export interface IssueInvoiceInput {
   orderId: string
 }
@@ -40,8 +42,8 @@ export async function issueInvoice(db: Firestore, { orderId }: IssueInvoiceInput
       throw new Error(`Order not found: ${orderId}`)
     }
     const order = orderSnap.data() as SalesOrder
-    if (order.status === 'quoted') {
-      throw new Error(`Order status is 'quoted' — an invoice can only be issued for a confirmed order.`)
+    if (!REALIZED_ORDER_STATUSES.includes(order.status)) {
+      throw new Error(`Order status is '${order.status}' — an invoice can only be issued for a confirmed order.`)
     }
 
     const buyerRef = db.collection('buyers').doc(order.buyerId)

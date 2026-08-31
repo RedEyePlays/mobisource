@@ -217,7 +217,7 @@ Every change to stock writes a row here. Nothing edits quantity directly.
 ```
 movementId       string
 at               timestamp
-type             string    receive | teardownIn | teardownOut | sale | return | scrap | adjust | transfer
+type             string    receive | teardownIn | teardownOut | sale | return | scrap | adjust | transfer | release
 skuCode          string
 itemId           string    serialized only
 qty              number    +/-
@@ -262,7 +262,7 @@ taxRateBps       number    the rate actually applied, basis points (1300 = 13%);
 taxStatus        string    the buyer's taxStatus *as of confirm* — snapshotted
                             here so it can never drift from what was charged
 total            number    cents — subtotal + tax
-status           string    quoted | confirmed | shipped | paid
+status           string    quoted | confirmed | shipped | paid | cancelled — see §14
 createdAt        timestamp
 paymentMethod    string    cash | card | eTransfer | null — see §8
 ```
@@ -855,3 +855,62 @@ unit — the sale really is void, so nothing should look like a loss there.
 Bulk returns are outside `marginBySku`'s scope, same as bulk sales
 already are (§8's "Known gap") — bulk items have no per-unit
 `stockItems` doc for the report to key off of.
+
+---
+
+## 14. Quote expiry and cancellation
+
+An abandoned quote holds a serialized item reserved forever unless
+something releases it. Two paths, same underlying mechanics:
+
+**`cancelOrder({ orderId })`** — a person cancels a still-`quoted` order
+explicitly. Only valid from `quoted`; a confirmed sale is reversed through
+a return (§13), not a cancel.
+
+**The 7-day auto-expiry sweep** — `expireStaleQuotes`, an `onSchedule`
+Cloud Function (decision made without asking: runs every 24 hours — the
+task says quotes older than 7 days should expire but not how often to
+check; daily keeps nothing abandoned much past a week while staying cheap)
+finds every `quoted` order and cancels the ones older than 7 days, reusing
+`cancelOrder`'s own transaction for each one — one place that knows how to
+safely unwind a quote, whether a person or a timer triggered it. Fetches
+all `quoted` orders with a single-field equality query and filters by age
+in code, rather than a composite `(status, createdAt)` index — `quoted` is
+always a small, bounded set (everything else has already moved to a
+terminal status), so this stays correct without an index deployment.
+
+**What actually happens on cancel, for each line:**
+
+```
+serialized line   stockItems.status: reserved -> inStock
+                   stockMovements: type 'release', qty +1, unitCost = the
+                   order line's snapshotted unitCost — reverses createOrder's
+                   reservation
+
+bulk line          nothing — createOrder never decremented bulkStock at
+                   quote time (§8: only a soft, point-in-time check), so
+                   there's nothing held to release
+```
+
+Decision made without asking: `release` is a new `stockMovements.type`
+value (§3) — none of the existing ones (`return`, `adjust`, `transfer`...)
+cleanly means "a reservation was let go, no sale ever happened, nothing
+about counted stock actually changed." Reusing `return` would conflate
+this with a completed-sale reversal (§13) in reports; reusing `adjust`
+would conflate it with a cycle-count correction (§15). The task's own
+"nothing silently changes stock" only requires *a* ledger row exists here,
+not which type it carries — but the item's original *reservation*
+(`createOrder`, §3) still writes none, unchanged: reserving isn't a stock
+movement any more than it was before this piece, only releasing one is.
+
+Both `cancelOrder` and the sweep set `status: 'cancelled'` — the same
+terminal status regardless of which one triggered it (decision made
+without asking: the task doesn't ask for the order list to distinguish
+"cancelled by a person" from "auto-expired," so this doesn't add a second
+status just to carry that distinction; the movement's `note` field still
+records which happened, for the curious).
+
+**Quote age**, shown in `OrderList` for any `quoted` order, is `now -
+createdAt` in whole days — informational only; it's not what the sweep
+uses to decide (the sweep re-derives age itself, server-side, at run
+time).
