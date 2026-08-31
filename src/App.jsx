@@ -5,12 +5,14 @@ import DonorList from './donors/DonorList.jsx'
 import DonorForm from './donors/DonorForm.jsx'
 import SkuList from './skus/SkuList.jsx'
 import SkuForm from './skus/SkuForm.jsx'
+import BuyerList from './buyers/BuyerList.jsx'
+import BuyerForm from './buyers/BuyerForm.jsx'
 
 function AppShell() {
   const { loading, user, isStaff } = useAuth()
   const [section, setSection] = useState('donors')
   const [view, setView] = useState('list')
-  const [editingSku, setEditingSku] = useState(null)
+  const [editingRecord, setEditingRecord] = useState(null)
 
   if (loading) {
     return null
@@ -31,7 +33,7 @@ function AppShell() {
   function goToSection(next) {
     setSection(next)
     setView('list')
-    setEditingSku(null)
+    setEditingRecord(null)
   }
 
   return (
@@ -49,6 +51,12 @@ function AppShell() {
         >
           SKUs
         </button>
+        <button
+          onClick={() => goToSection('buyers')}
+          className={section === 'buyers' ? 'font-semibold' : 'text-gray-500'}
+        >
+          Buyers
+        </button>
       </nav>
 
       {section === 'donors' && view === 'list' && <DonorList onIntake={() => setView('form')} />}
@@ -57,16 +65,32 @@ function AppShell() {
       {section === 'skus' && view === 'list' && (
         <SkuList
           onCreate={() => {
-            setEditingSku(null)
+            setEditingRecord(null)
             setView('form')
           }}
           onEdit={(sku) => {
-            setEditingSku(sku)
+            setEditingRecord(sku)
             setView('form')
           }}
         />
       )}
-      {section === 'skus' && view === 'form' && <SkuForm sku={editingSku} onDone={() => setView('list')} />}
+      {section === 'skus' && view === 'form' && <SkuForm sku={editingRecord} onDone={() => setView('list')} />}
+
+      {section === 'buyers' && view === 'list' && (
+        <BuyerList
+          onCreate={() => {
+            setEditingRecord(null)
+            setView('form')
+          }}
+          onEdit={(buyer) => {
+            setEditingRecord(buyer)
+            setView('form')
+          }}
+        />
+      )}
+      {section === 'buyers' && view === 'form' && (
+        <BuyerForm buyer={editingRecord} onDone={() => setView('list')} />
+      )}
     </div>
   )
 }

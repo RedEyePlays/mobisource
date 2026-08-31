@@ -204,7 +204,30 @@ status           string    quoted | confirmed | shipped | paid
 createdAt        timestamp
 ```
 
----
+`itemId` is set for a serialized line (one specific `stockItem`) and omitted
+for a bulk line (SKU + qty against `bulkStock`). `unitCost` is a snapshot —
+for a serialized line it's that item's `allocatedCost` at order time; it is
+never looked up again afterward.
+
+#### Line pricing: buyer tier vs. quantity break
+
+`skus.listPriceTier1/2/3` are **quantity breaks** (1-4 / 5-19 / 20+ units).
+`buyers.tier` is a **buyer classification** (`tier1|tier2|tier3`). These are
+two different axes, not the same field under two names — a line's
+`unitPrice` is resolved server-side as:
+
+```
+retail buyer  -> listPriceRetail, always
+otherwise     -> min(SKU price at buyer.tier, SKU price at the line's
+                 quantity break)
+```
+
+i.e. the buyer's tier is a price *floor*, not a fixed lookup — a tier3
+buyer ordering 2 units still doesn't pay the 20+ price, and a tier1 buyer
+ordering 40 gets the 20+ price rather than being held to tier1. Whichever
+of the two lookups is cheaper for the buyer wins. This resolution always
+happens server-side in the order-building callable — a client never
+supplies or sees the other tiers' prices for a line it didn't order.
 
 ## 3.5 Teardown profiles
 
