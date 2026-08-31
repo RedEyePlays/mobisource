@@ -2,8 +2,29 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Deny-all default. Per-collection rules land with the phase 1 plan —
-    // every collection must get explicit rules before it's readable/writable.
+    // Single role for now: an internal staff account. No other roles exist yet.
+    function isStaff() {
+      return request.auth != null && request.auth.token.staff == true;
+    }
+
+    match /skus/{skuCode} {
+      allow read: if isStaff();
+      allow write: if false;
+    }
+
+    match /donors/{donorId} {
+      allow read: if isStaff();
+      allow write: if false;
+    }
+
+    match /teardownProfiles/{profileId} {
+      allow read: if isStaff();
+      allow write: if false;
+    }
+
+    // Deny-all default. Every other collection (bulkStock, stockItems,
+    // teardowns, stockMovements, buyers, salesOrders, ...) gets explicit
+    // rules when its phase lands.
     match /{document=**} {
       allow read, write: if false;
     }
