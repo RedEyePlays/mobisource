@@ -349,6 +349,14 @@ One atomic write. If any step fails, none of it lands.
 
 Do this in a Cloud Function callable, not client-side — same server-mediated-writes pattern already on the FTT roadmap.
 
+The profile is a checklist, not a hard limit: a ticked part outside the
+profile is accepted too, as long as it's an existing, **active** SKU —
+allocation needs its `expectedResale`, and there's nowhere to get one for
+a SKU that doesn't exist yet or has been deactivated. If the operator
+found a part with no SKU at all, the SKU has to be created first. Only
+the profile's own `expectedParts` feed `notHarvested` — an off-profile
+part was never "expected", so it can't be logged as missed.
+
 ---
 
 ## 6. Scrap handling

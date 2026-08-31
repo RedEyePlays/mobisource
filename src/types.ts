@@ -52,6 +52,7 @@ export type BuyerType = 'repairShop' | 'broker' | 'exporter' | 'retail'
 export type BuyerTier = 'standard' | 'preferred' | 'partner'
 export type BuyerTerms = 'prepay' | 'net7' | 'net15'
 export type SalesOrderStatus = 'quoted' | 'confirmed' | 'shipped' | 'paid'
+export type TeardownProfileGrade = 'AB' | 'CD'
 
 // ---------------------------------------------------------------------------
 // Firestore document shapes actually read/written by the frontend.
@@ -174,4 +175,16 @@ export interface Teardown {
   scrapped: TeardownScrappedEntry[]
   notHarvested: TeardownNotHarvestedEntry[]
   costCheck: Cents
+}
+
+export interface ExpectedPart {
+  skuCode: string
+  likelihood: number
+}
+
+export interface TeardownProfile {
+  profileId: string
+  model: string
+  donorGrade: TeardownProfileGrade
+  expectedParts: ExpectedPart[]
 }

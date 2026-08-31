@@ -93,7 +93,10 @@ interface ScrappedPart {
  *
  * parts: [{ skuCode, outcome: 'sellable' | 'scrapped', reason? }]
  * Any of the profile's expectedParts not present in `parts` is treated as
- * notHarvested. Every submitted skuCode must belong to the profile.
+ * notHarvested. A submitted skuCode outside the profile is allowed (an
+ * unexpected part that genuinely came out) but must already exist as an
+ * active SKU — allocation needs its expectedResale, and there's nowhere
+ * to get one for a SKU that doesn't exist yet or has been deactivated.
  */
 export async function teardownDonor(
   db: Firestore,
@@ -125,11 +128,6 @@ export async function teardownDonor(
     const profile = profileSnap.data() as TeardownProfile
 
     const expectedCodes = new Set(profile.expectedParts.map((p) => p.skuCode))
-    for (const skuCode of submitted.keys()) {
-      if (!expectedCodes.has(skuCode)) {
-        throw new Error(`${skuCode} is not part of profile ${profileId}.`)
-      }
-    }
 
     // Snapshot expectedResale from the SKU docs right here, inside the
     // transaction. This teardown never reads it again after this point —
@@ -155,6 +153,31 @@ export async function teardownDonor(
       if (!submittedPart) {
         notHarvested.push({ partType: sku.partType, reason: '' })
       } else if (submittedPart.outcome === SELLABLE) {
+        sellable.push({ skuCode, expectedResaleCents: sku.expectedResale, grade: sku.grade })
+      } else {
+        scrapped.push({ skuCode, grade: sku.grade, partType: sku.partType, reason: submittedPart.reason ?? '' })
+      }
+    })
+
+    // A submitted part outside the profile (an unexpected but genuinely
+    // harvested part) is allowed, but only for a SKU that already exists
+    // and is active in the catalog — allocation needs its expectedResale,
+    // and an inactive/nonexistent SKU has none to offer.
+    const extraSkuCodes = [...submitted.keys()].filter((skuCode) => !expectedCodes.has(skuCode))
+    const extraSkuSnaps = await Promise.all(
+      extraSkuCodes.map((skuCode) => tx.get(db.collection('skus').doc(skuCode))),
+    )
+    extraSkuSnaps.forEach((snap, i) => {
+      const skuCode = extraSkuCodes[i]
+      if (!snap.exists) {
+        throw new Error(`SKU not found: ${skuCode}`)
+      }
+      const sku = snap.data() as Sku
+      if (!sku.active) {
+        throw new Error(`${skuCode} is not an active SKU.`)
+      }
+      const submittedPart = submitted.get(skuCode)!
+      if (submittedPart.outcome === SELLABLE) {
         sellable.push({ skuCode, expectedResaleCents: sku.expectedResale, grade: sku.grade })
       } else {
         scrapped.push({ skuCode, grade: sku.grade, partType: sku.partType, reason: submittedPart.reason ?? '' })
