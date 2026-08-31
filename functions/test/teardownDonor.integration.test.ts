@@ -191,6 +191,82 @@ describe('teardownDonor', () => {
     expect(teardownAfter.costCheck).toBe(teardownBefore.costCheck)
   })
 
+  it('accepts a part outside the profile as long as it is an existing, active SKU', async () => {
+    await seedCatalog()
+    // Bumper, not in either teardown profile — but a real, active SKU.
+    const BUMPER = 'MS-HOUS-IP14P-A-PULL'
+    await db.collection('skus').doc(BUMPER).set({
+      skuCode: BUMPER, partType: 'HOUS', model: MODEL, grade: 'A', source: 'PULL',
+      trackingMode: 'serialized', expectedResale: 4000, listPriceRetail: 5000,
+      listPriceTier1: 4800, listPriceTier2: 4400, listPriceTier3: 4000, active: true,
+    })
+    await seedIntactDonor('donor4')
+
+    const result = await teardownDonor(db, {
+      donorId: 'donor4',
+      parts: [
+        { skuCode: SCRN, outcome: 'sellable' },
+        { skuCode: BUMPER, outcome: 'sellable' },
+      ],
+    })
+
+    const teardown = (await db.collection('teardowns').doc(result.teardownId).get()).data()!
+    expect(teardown.allocations.map((a: { skuCode: string }) => a.skuCode).sort()).toEqual([BUMPER, SCRN].sort())
+    expect(
+      teardown.allocations.reduce((sum: number, a: { allocatedCost: number }) => sum + a.allocatedCost, 0),
+    ).toBe(40000)
+
+    const bumperItem = (
+      await db.collection('stockItems').where('donorId', '==', 'donor4').where('skuCode', '==', BUMPER).get()
+    ).docs[0].data()
+    expect(bumperItem.status).toBe('inStock')
+    expect(bumperItem.allocatedCost).toBeGreaterThan(0)
+  })
+
+  it('rejects a submitted skuCode with no matching SKU in the catalog, with no writes', async () => {
+    await seedCatalog()
+    await seedIntactDonor('donor5')
+
+    await expect(
+      teardownDonor(db, {
+        donorId: 'donor5',
+        parts: [
+          { skuCode: SCRN, outcome: 'sellable' },
+          { skuCode: 'MS-NFC-IP14P-A-PULL', outcome: 'sellable' }, // never created
+        ],
+      }),
+    ).rejects.toThrow(/not found/)
+
+    expect(await countDocs('teardowns')).toBe(0)
+    expect(await countDocs('stockItems')).toBe(0)
+    const donorSnap = await db.collection('donors').doc('donor5').get()
+    expect(donorSnap.data()!.status).toBe('intact')
+  })
+
+  it('rejects a submitted skuCode that exists but is deactivated, with no writes', async () => {
+    await seedCatalog()
+    const RETIRED = 'MS-CHRG-IP14P-A-PULL'
+    await db.collection('skus').doc(RETIRED).set({
+      skuCode: RETIRED, partType: 'CHRG', model: MODEL, grade: 'A', source: 'PULL',
+      trackingMode: 'serialized', expectedResale: 1200, listPriceRetail: 1500,
+      listPriceTier1: 1400, listPriceTier2: 1300, listPriceTier3: 1200, active: false,
+    })
+    await seedIntactDonor('donor6')
+
+    await expect(
+      teardownDonor(db, {
+        donorId: 'donor6',
+        parts: [
+          { skuCode: SCRN, outcome: 'sellable' },
+          { skuCode: RETIRED, outcome: 'sellable' },
+        ],
+      }),
+    ).rejects.toThrow(/not an active SKU/)
+
+    expect(await countDocs('teardowns')).toBe(0)
+    expect(await countDocs('stockItems')).toBe(0)
+  })
+
   it('throws for a donor that does not exist, with no writes', async () => {
     await seedCatalog()
 
