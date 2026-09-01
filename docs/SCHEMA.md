@@ -432,6 +432,10 @@ expectedParts    array     [{ skuCode, likelihood }]
 
 Model-specific parts (NFC, flash, speaker count) just get left out of that model's profile. The profile is the model's parts list — no need for a universal schema that covers every phone.
 
+Managed from the **Teardown profiles** screen in the app: create a profile for a model + grade, add expected parts with likelihood, edit the parts list later, delete a profile that's no longer needed. Creating one offers "copy from an existing profile" to prefill the parts list and likelihoods from another model — most models share a near-identical part set, so this is usually faster than starting from scratch; you then adjust the SKU codes for the new model.
+
+Writes go through three staff-only callables (`functions/src/teardownProfiles.ts`) — `createTeardownProfile`, `updateTeardownProfile`, `deleteTeardownProfile`. `profileId` is derived (`{model}-{donorGrade}`), never typed directly. `model`/`donorGrade` are immutable after creation — like a SKU's identity fields, changing either means a different profile, not an edit. `updateTeardownProfile` only ever replaces `expectedParts` wholesale. Every `expectedParts[].skuCode` must already exist in `skus` — this is checked at write time so a typo surfaces immediately instead of mid-transaction the next time someone tears down a donor against that profile. As with every collection in this doc, `firestore.rules` keeps `teardownProfiles` at `write: if false` for direct client writes; these callables write with the admin SDK.
+
 ---
 
 ## 4. Teardown cost allocation
