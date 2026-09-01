@@ -127,15 +127,15 @@ export async function teardownDonor(
     }
     const profile = profileSnap.data() as TeardownProfile
 
-    const expectedCodes = new Set(profile.expectedParts.map((p) => p.skuCode))
+    const expectedCodes = new Set(profile.expectedParts)
 
     // Snapshot expectedResale from the SKU docs right here, inside the
     // transaction. This teardown never reads it again after this point —
     // a later updateSku changing expectedResale can never reach back into
     // this teardown's allocations or this transaction's stockItems.
-    const skuEntries = profile.expectedParts
+    const skuCodes = profile.expectedParts
     const skuSnaps = await Promise.all(
-      skuEntries.map(({ skuCode }) => tx.get(db.collection('skus').doc(skuCode))),
+      skuCodes.map((skuCode) => tx.get(db.collection('skus').doc(skuCode))),
     )
 
     const sellable: SellablePart[] = []
@@ -143,7 +143,7 @@ export async function teardownDonor(
     const notHarvested: TeardownNotHarvestedEntry[] = []
 
     skuSnaps.forEach((snap, i) => {
-      const { skuCode } = skuEntries[i]
+      const skuCode = skuCodes[i]
       if (!snap.exists) {
         throw new Error(`SKU not found: ${skuCode}`)
       }

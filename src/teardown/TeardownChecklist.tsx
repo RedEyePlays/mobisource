@@ -69,10 +69,10 @@ export default function TeardownChecklist({
 
         setProfile(loadedProfile)
         setSkus(loadedSkus)
-        setRowOrder(loadedProfile.expectedParts.map((p) => p.skuCode))
+        setRowOrder(loadedProfile.expectedParts)
         setRows(
           Object.fromEntries(
-            loadedProfile.expectedParts.map((p) => [p.skuCode, { outcome: 'notHarvested', reason: '', isExtra: false }]),
+            loadedProfile.expectedParts.map((skuCode) => [skuCode, { outcome: 'notHarvested', reason: '', isExtra: false }]),
           ),
         )
         setLoading(false)

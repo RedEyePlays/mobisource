@@ -14,7 +14,7 @@ const PROFILE_ID = 'IP14P-AB'
 const PROFILE_DOC = {
   model: 'IP14P',
   donorGrade: 'AB',
-  expectedParts: [{ skuCode: 'MS-SCRN-IP14P-A-PULL', likelihood: 0.9 }],
+  expectedParts: ['MS-SCRN-IP14P-A-PULL'],
 }
 
 beforeAll(async () => {

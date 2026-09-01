@@ -258,19 +258,13 @@ export interface SalesOrder {
   paymentMethod: PaymentMethod | null
 }
 
-/** One row of `teardownProfiles.expectedParts`. */
-export interface ExpectedPart {
-  skuCode: string
-  /** How often this part actually comes out sellable, 0-1. */
-  likelihood: number
-}
-
 /** `teardownProfiles/{profileId}` */
 export interface TeardownProfile {
   profileId: string
   model: string
   donorGrade: TeardownProfileGrade
-  expectedParts: ExpectedPart[]
+  /** skuCodes of the parts that usually come out of a donor at this grade. */
+  expectedParts: string[]
 }
 
 /** docs/SCHEMA.md §7 `bulkReceipts.shippingStatus`. */

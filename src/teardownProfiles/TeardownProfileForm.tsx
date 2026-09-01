@@ -10,11 +10,10 @@ const GRADES: readonly TeardownProfileGrade[] = ['AB', 'CD']
 interface PartLine {
   key: number
   skuCode: string
-  likelihood: string
 }
 
-function newPartLine(key: number, skuCode = '', likelihood = ''): PartLine {
-  return { key, skuCode, likelihood }
+function newPartLine(key: number, skuCode = ''): PartLine {
+  return { key, skuCode }
 }
 
 // profile: null for create, or an existing profile's data for edit (model
@@ -33,9 +32,7 @@ export default function TeardownProfileForm({
   const [donorGrade, setDonorGrade] = useState<TeardownProfileGrade>(profile?.donorGrade ?? GRADES[0])
   const [parts, setParts] = useState<PartLine[]>(() => {
     const source = profile?.expectedParts ?? []
-    return source.length > 0
-      ? source.map((p, i) => newPartLine(i, p.skuCode, String(p.likelihood)))
-      : [newPartLine(0)]
+    return source.length > 0 ? source.map((skuCode, i) => newPartLine(i, skuCode)) : [newPartLine(0)]
   })
   const [nextKey, setNextKey] = useState(parts.length)
 
@@ -66,12 +63,12 @@ export default function TeardownProfileForm({
     const source = existingProfiles.find((p) => p.profileId === sourceId)
     if (!source) return
     setDonorGrade(source.donorGrade)
-    setParts(source.expectedParts.map((p, i) => newPartLine(i, p.skuCode, String(p.likelihood))))
+    setParts(source.expectedParts.map((skuCode, i) => newPartLine(i, skuCode)))
     setNextKey(source.expectedParts.length)
   }
 
-  function updatePart(key: number, patch: Partial<PartLine>) {
-    setParts((ps) => ps.map((p) => (p.key === key ? { ...p, ...patch } : p)))
+  function updatePart(key: number, skuCode: string) {
+    setParts((ps) => ps.map((p) => (p.key === key ? { ...p, skuCode } : p)))
   }
 
   function addPart() {
@@ -88,10 +85,7 @@ export default function TeardownProfileForm({
     setError('')
     setSubmitting(true)
     try {
-      const expectedParts = parts.map((p) => ({
-        skuCode: p.skuCode.trim(),
-        likelihood: Number(p.likelihood),
-      }))
+      const expectedParts = parts.map((p) => p.skuCode.trim())
 
       if (isEdit && profile) {
         const updateTeardownProfile = httpsCallable(functions, 'updateTeardownProfile')
@@ -165,27 +159,14 @@ export default function TeardownProfileForm({
         <div className="flex flex-col gap-3">
           <p className="section-title">Expected parts</p>
           {parts.map((part) => (
-            <div key={part.key} className="card flex flex-col gap-2 p-3 sm:grid sm:grid-cols-[1fr_auto_auto] sm:items-end">
-              <label className="field text-sm">
+            <div key={part.key} className="flex items-end gap-2">
+              <label className="field flex-1 text-sm">
                 SKU code
                 <input
                   value={part.skuCode}
-                  onChange={(e) => updatePart(part.key, { skuCode: e.target.value })}
+                  onChange={(e) => updatePart(part.key, e.target.value)}
                   className="input font-mono"
                   placeholder="MS-SCRN-IP14P-A-PULL"
-                  required
-                />
-              </label>
-              <label className="field text-sm">
-                Likelihood
-                <input
-                  value={part.likelihood}
-                  onChange={(e) => updatePart(part.key, { likelihood: e.target.value })}
-                  type="number"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  className="input w-24"
                   required
                 />
               </label>

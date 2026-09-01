@@ -236,16 +236,11 @@ export interface Teardown {
   costCheck: Cents
 }
 
-export interface ExpectedPart {
-  skuCode: string
-  likelihood: number
-}
-
 export interface TeardownProfile {
   profileId: string
   model: string
   donorGrade: TeardownProfileGrade
-  expectedParts: ExpectedPart[]
+  expectedParts: string[]
 }
 
 export interface TaxRateEntry {

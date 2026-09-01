@@ -50,25 +50,25 @@ describe('createTeardownProfile', () => {
     const result = await createTeardownProfile(db, {
       model: 'IP14P',
       donorGrade: 'AB',
-      expectedParts: [{ skuCode: 'MS-SCRN-IP14P-A-PULL', likelihood: 0.9 }],
+      expectedParts: ['MS-SCRN-IP14P-A-PULL'],
     })
 
     expect(result.profileId).toBe('IP14P-AB')
     const doc = (await db.collection('teardownProfiles').doc('IP14P-AB').get()).data()!
     expect(doc.model).toBe('IP14P')
     expect(doc.donorGrade).toBe('AB')
-    expect(doc.expectedParts).toEqual([{ skuCode: 'MS-SCRN-IP14P-A-PULL', likelihood: 0.9 }])
+    expect(doc.expectedParts).toEqual(['MS-SCRN-IP14P-A-PULL'])
   })
 
   it('rejects an invalid model code', async () => {
     await expect(
-      createTeardownProfile(db, { model: 'ip14p', donorGrade: 'AB', expectedParts: [{ skuCode: 'x', likelihood: 1 }] }),
+      createTeardownProfile(db, { model: 'ip14p', donorGrade: 'AB', expectedParts: ['x'] }),
     ).rejects.toThrow(/model/)
   })
 
   it('rejects an invalid donorGrade', async () => {
     await expect(
-      createTeardownProfile(db, { model: 'IP14P', donorGrade: 'A', expectedParts: [{ skuCode: 'x', likelihood: 1 }] }),
+      createTeardownProfile(db, { model: 'IP14P', donorGrade: 'A', expectedParts: ['x'] }),
     ).rejects.toThrow(/donorGrade/)
   })
 
@@ -84,40 +84,15 @@ describe('createTeardownProfile', () => {
       createTeardownProfile(db, {
         model: 'IP14P',
         donorGrade: 'AB',
-        expectedParts: [
-          { skuCode: 'MS-SCRN-IP14P-A-PULL', likelihood: 0.9 },
-          { skuCode: 'MS-SCRN-IP14P-A-PULL', likelihood: 0.5 },
-        ],
+        expectedParts: ['MS-SCRN-IP14P-A-PULL', 'MS-SCRN-IP14P-A-PULL'],
       }),
     ).rejects.toThrow(/Duplicate/)
   })
 
-  it('rejects a likelihood outside 0-1', async () => {
-    await seedSku('MS-SCRN-IP14P-A-PULL')
+  it('rejects a blank skuCode', async () => {
     await expect(
-      createTeardownProfile(db, {
-        model: 'IP14P',
-        donorGrade: 'AB',
-        expectedParts: [{ skuCode: 'MS-SCRN-IP14P-A-PULL', likelihood: 1.1 }],
-      }),
-    ).rejects.toThrow(/likelihood/)
-    await expect(
-      createTeardownProfile(db, {
-        model: 'IP14P',
-        donorGrade: 'AB',
-        expectedParts: [{ skuCode: 'MS-SCRN-IP14P-A-PULL', likelihood: -0.1 }],
-      }),
-    ).rejects.toThrow(/likelihood/)
-  })
-
-  it('allows a likelihood of exactly 0 or 1', async () => {
-    await seedSku('MS-SCRN-IP14P-A-PULL')
-    const result = await createTeardownProfile(db, {
-      model: 'IP14P',
-      donorGrade: 'AB',
-      expectedParts: [{ skuCode: 'MS-SCRN-IP14P-A-PULL', likelihood: 0 }],
-    })
-    expect(result.profileId).toBe('IP14P-AB')
+      createTeardownProfile(db, { model: 'IP14P', donorGrade: 'AB', expectedParts: ['  '] }),
+    ).rejects.toThrow(/skuCode/)
   })
 
   it('rejects a skuCode that does not exist', async () => {
@@ -125,18 +100,14 @@ describe('createTeardownProfile', () => {
       createTeardownProfile(db, {
         model: 'IP14P',
         donorGrade: 'AB',
-        expectedParts: [{ skuCode: 'MS-NOPE-IP14P-A-PULL', likelihood: 0.5 }],
+        expectedParts: ['MS-NOPE-IP14P-A-PULL'],
       }),
     ).rejects.toThrow(/Unknown skuCode/)
   })
 
   it('rejects creating a profile that already exists', async () => {
     await seedSku('MS-SCRN-IP14P-A-PULL')
-    const input = {
-      model: 'IP14P',
-      donorGrade: 'AB' as const,
-      expectedParts: [{ skuCode: 'MS-SCRN-IP14P-A-PULL', likelihood: 0.9 }],
-    }
+    const input = { model: 'IP14P', donorGrade: 'AB' as const, expectedParts: ['MS-SCRN-IP14P-A-PULL'] }
     await createTeardownProfile(db, input)
     await expect(createTeardownProfile(db, input)).rejects.toThrow(/already exists/)
   })
@@ -149,16 +120,16 @@ describe('updateTeardownProfile', () => {
     await createTeardownProfile(db, {
       model: 'IP14P',
       donorGrade: 'AB',
-      expectedParts: [{ skuCode: 'MS-SCRN-IP14P-A-PULL', likelihood: 0.9 }],
+      expectedParts: ['MS-SCRN-IP14P-A-PULL'],
     })
 
     await updateTeardownProfile(db, {
       profileId: 'IP14P-AB',
-      expectedParts: [{ skuCode: 'MS-LOGIC-IP14P-A-PULL', likelihood: 0.95 }],
+      expectedParts: ['MS-LOGIC-IP14P-A-PULL'],
     })
 
     const doc = (await db.collection('teardownProfiles').doc('IP14P-AB').get()).data()!
-    expect(doc.expectedParts).toEqual([{ skuCode: 'MS-LOGIC-IP14P-A-PULL', likelihood: 0.95 }])
+    expect(doc.expectedParts).toEqual(['MS-LOGIC-IP14P-A-PULL'])
     // model/donorGrade are untouched — identity fields, not editable here.
     expect(doc.model).toBe('IP14P')
     expect(doc.donorGrade).toBe('AB')
@@ -167,17 +138,12 @@ describe('updateTeardownProfile', () => {
   it('rejects updating a profile that does not exist', async () => {
     await seedSku('MS-SCRN-IP14P-A-PULL')
     await expect(
-      updateTeardownProfile(db, {
-        profileId: 'IP14P-AB',
-        expectedParts: [{ skuCode: 'MS-SCRN-IP14P-A-PULL', likelihood: 0.9 }],
-      }),
+      updateTeardownProfile(db, { profileId: 'IP14P-AB', expectedParts: ['MS-SCRN-IP14P-A-PULL'] }),
     ).rejects.toThrow(/not found/)
   })
 
   it('rejects a missing profileId', async () => {
-    await expect(
-      updateTeardownProfile(db, { expectedParts: [{ skuCode: 'x', likelihood: 0.9 }] }),
-    ).rejects.toThrow(/profileId/)
+    await expect(updateTeardownProfile(db, { expectedParts: ['x'] })).rejects.toThrow(/profileId/)
   })
 })
 
@@ -187,7 +153,7 @@ describe('deleteTeardownProfile', () => {
     await createTeardownProfile(db, {
       model: 'IP14P',
       donorGrade: 'AB',
-      expectedParts: [{ skuCode: 'MS-SCRN-IP14P-A-PULL', likelihood: 0.9 }],
+      expectedParts: ['MS-SCRN-IP14P-A-PULL'],
     })
 
     await deleteTeardownProfile(db, { profileId: 'IP14P-AB' })
