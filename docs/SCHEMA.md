@@ -395,46 +395,42 @@ The output set depends on **model + donor grade**, not model alone. Store it as 
 profileId        string    IP14P-AB / IP14P-CD
 model            string
 donorGrade       string    AB | CD
-expectedParts    array     [{ skuCode, likelihood }]
+expectedParts    array     [skuCode, ...]
 ```
 
-`likelihood` = how often this part actually comes out sellable (0–1). Seeds your yield expectations and gets corrected by real data.
+`expectedParts` is just the list of SKUs that usually come out of a donor at this grade — no per-part yield estimate stored. An earlier version carried a `likelihood` (0–1) per part, but nothing in the system actually read it as a probability: `teardownDonor` only ever needed the skuCode to build the checklist, and typing a number nobody used was pure friction. If something ever does need a per-part likelihood, treat every listed part as 1 (expected) — that's the honest default for "no data yet," not a real number to seed and correct.
 
 `donorGrade` is a group of two individual donor grades, not a grade itself: `donors.condition` is `A | B | C | D`, and the teardown callable looks up the profile via `A` or `B` → `{model}-AB`, `C` or `D` → `{model}-CD`.
 
 **Profile: mint donor (A/B housing)**
 
-| SKU | Likelihood |
-|---|---|
-| MS-SCRN-{model}-A-PULL | 0.9 |
-| MS-LOGIC-{model}-A-PULL | 0.95 |
-| MS-HOUSASM-{model}-A-PULL | 0.9 |
-| MS-CAMR-{model}-A-PULL | 0.95 |
-| MS-CAMF-{model}-A-PULL | 0.9 |
-| MS-BATT-{model}-B-PULL | 0.3 |
+- MS-SCRN-{model}-A-PULL
+- MS-LOGIC-{model}-A-PULL
+- MS-HOUSASM-{model}-A-PULL
+- MS-CAMR-{model}-A-PULL
+- MS-CAMF-{model}-A-PULL
+- MS-BATT-{model}-B-PULL
 
 **Profile: rough donor (C/D housing)**
 
-| SKU | Likelihood |
-|---|---|
-| MS-SCRN-{model}-B-PULL | 0.6 |
-| MS-LOGIC-{model}-A-PULL | 0.95 |
-| MS-CHRG-{model}-A-PULL | 0.9 |
-| MS-NFC-{model}-A-PULL | 0.8 |
-| MS-SPKR-{model}-A-PULL | 0.8 |
-| MS-EARP-{model}-A-PULL | 0.8 |
-| MS-PROX-{model}-A-PULL | 0.7 |
-| MS-FLSH-{model}-A-PULL | 0.6 |
-| MS-TAPT-{model}-A-PULL | 0.8 |
-| MS-CAMR-{model}-A-PULL | 0.9 |
-| MS-CAMF-{model}-A-PULL | 0.9 |
-| MS-BGLS-{model}-C-PULL | 0.4 |
+- MS-SCRN-{model}-B-PULL
+- MS-LOGIC-{model}-A-PULL
+- MS-CHRG-{model}-A-PULL
+- MS-NFC-{model}-A-PULL
+- MS-SPKR-{model}-A-PULL
+- MS-EARP-{model}-A-PULL
+- MS-PROX-{model}-A-PULL
+- MS-FLSH-{model}-A-PULL
+- MS-TAPT-{model}-A-PULL
+- MS-CAMR-{model}-A-PULL
+- MS-CAMF-{model}-A-PULL
+- MS-BGLS-{model}-C-PULL
 
 Model-specific parts (NFC, flash, speaker count) just get left out of that model's profile. The profile is the model's parts list — no need for a universal schema that covers every phone.
 
-Managed from the **Teardown profiles** screen in the app: create a profile for a model + grade, add expected parts with likelihood, edit the parts list later, delete a profile that's no longer needed. Creating one offers "copy from an existing profile" to prefill the parts list and likelihoods from another model — most models share a near-identical part set, so this is usually faster than starting from scratch; you then adjust the SKU codes for the new model.
+Managed from the **Teardown profiles** screen in the app: create a profile for a model + grade, add the expected SKUs, edit the parts list later, delete a profile that's no longer needed. Creating one offers "copy from an existing profile" to prefill the parts list from another model — most models share a near-identical part set, so this is usually faster than starting from scratch; you then adjust the SKU codes for the new model.
 
-Writes go through three staff-only callables (`functions/src/teardownProfiles.ts`) — `createTeardownProfile`, `updateTeardownProfile`, `deleteTeardownProfile`. `profileId` is derived (`{model}-{donorGrade}`), never typed directly. `model`/`donorGrade` are immutable after creation — like a SKU's identity fields, changing either means a different profile, not an edit. `updateTeardownProfile` only ever replaces `expectedParts` wholesale. Every `expectedParts[].skuCode` must already exist in `skus` — this is checked at write time so a typo surfaces immediately instead of mid-transaction the next time someone tears down a donor against that profile. As with every collection in this doc, `firestore.rules` keeps `teardownProfiles` at `write: if false` for direct client writes; these callables write with the admin SDK.
+Writes go through three staff-only callables (`functions/src/teardownProfiles.ts`) — `createTeardownProfile`, `updateTeardownProfile`, `deleteTeardownProfile`. `profileId` is derived (`{model}-{donorGrade}`), never typed directly. `model`/`donorGrade` are immutable after creation — like a SKU's identity fields, changing either means a different profile, not an edit. `updateTeardownProfile` only ever replaces `expectedParts` wholesale. Every entry in `expectedParts` must already exist in `skus` — this is checked at write time so a typo surfaces immediately instead of mid-transaction the next time someone tears down a donor against that profile. As with every collection in this doc, `firestore.rules` keeps `teardownProfiles` at `write: if false` for direct client writes; these callables write with the admin SDK.
 
 ---
 
@@ -502,7 +498,7 @@ part was never "expected", so it can't be logged as missed.
 
 Two different cases, and they need different handling:
 
-**Not harvested / no market** (most batteries). Don't create a stockItem at all. Log it on the teardown as `notHarvested` so your likelihood numbers stay honest. It absorbs no cost.
+**Not harvested / no market** (most batteries). Don't create a stockItem at all. Log it on the teardown as `notHarvested` so your yield numbers stay honest. It absorbs no cost.
 
 **Harvested then broken or unsellable.** Create the stockItem, set `status: scrapped`, write a `scrap` movement. The cost hits a scrap account instead of vanishing. Your yield rate per model comes straight out of this — and yield is the number that tells you which donors to keep buying.
 

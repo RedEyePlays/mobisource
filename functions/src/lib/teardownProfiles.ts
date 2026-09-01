@@ -1,5 +1,5 @@
 import type { Firestore, WithFieldValue } from 'firebase-admin/firestore'
-import type { ExpectedPart, TeardownProfile, TeardownProfileGrade } from './types.js'
+import type { TeardownProfile, TeardownProfileGrade } from './types.js'
 
 const GRADES: readonly TeardownProfileGrade[] = ['AB', 'CD']
 // Same convention as generateSkuCode.ts's model pattern — profileId is
@@ -10,27 +10,22 @@ function isGrade(value: unknown): value is TeardownProfileGrade {
   return typeof value === 'string' && (GRADES as readonly string[]).includes(value)
 }
 
-interface RawExpectedPart {
-  skuCode?: unknown
-  likelihood?: unknown
-}
-
 /**
  * Validates and normalizes expectedParts, shared by create and update.
- * Requires at least one part, no duplicate skuCodes, and every skuCode to
+ * Requires at least one skuCode, no duplicates, and every skuCode to
  * already exist as a SKU — a typo here would otherwise surface only much
  * later, mid-transaction, the next time someone actually tears down a
  * donor against this profile (see teardownDonor.ts's "SKU not found").
  */
-async function validateExpectedParts(db: Firestore, parts: unknown): Promise<ExpectedPart[]> {
+async function validateExpectedParts(db: Firestore, parts: unknown): Promise<string[]> {
   if (!Array.isArray(parts) || parts.length === 0) {
     throw new Error('expectedParts must be a non-empty array.')
   }
 
   const seen = new Set<string>()
-  const normalized: ExpectedPart[] = []
-  for (const raw of parts as RawExpectedPart[]) {
-    const skuCode = typeof raw.skuCode === 'string' ? raw.skuCode.trim() : ''
+  const normalized: string[] = []
+  for (const raw of parts as unknown[]) {
+    const skuCode = typeof raw === 'string' ? raw.trim() : ''
     if (!skuCode) {
       throw new Error('Each expected part needs a skuCode.')
     }
@@ -38,16 +33,10 @@ async function validateExpectedParts(db: Firestore, parts: unknown): Promise<Exp
       throw new Error(`Duplicate skuCode in expectedParts: ${skuCode}`)
     }
     seen.add(skuCode)
-
-    const likelihood = raw.likelihood
-    if (typeof likelihood !== 'number' || !Number.isFinite(likelihood) || likelihood < 0 || likelihood > 1) {
-      throw new Error(`likelihood for ${skuCode} must be a number between 0 and 1.`)
-    }
-
-    normalized.push({ skuCode, likelihood })
+    normalized.push(skuCode)
   }
 
-  const skuSnaps = await db.getAll(...normalized.map((p) => db.collection('skus').doc(p.skuCode)))
+  const skuSnaps = await db.getAll(...normalized.map((skuCode) => db.collection('skus').doc(skuCode)))
   const missing = skuSnaps.filter((snap) => !snap.exists).map((snap) => snap.id)
   if (missing.length > 0) {
     throw new Error(`Unknown skuCode(s): ${missing.join(', ')}`)

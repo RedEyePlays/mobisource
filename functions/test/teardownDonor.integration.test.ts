@@ -55,12 +55,7 @@ async function seedCatalog() {
     profileId: `${MODEL}-AB`,
     model: MODEL,
     donorGrade: 'AB',
-    expectedParts: [
-      { skuCode: SCRN, likelihood: 0.9 },
-      { skuCode: LOGIC, likelihood: 0.95 },
-      { skuCode: BATT, likelihood: 0.3 },
-      { skuCode: CAMR, likelihood: 0.95 },
-    ],
+    expectedParts: [SCRN, LOGIC, BATT, CAMR],
   })
 }
 
