@@ -19,7 +19,9 @@ import PosScreen from './pos/PosScreen'
 import ExpenseList from './expenses/ExpenseList'
 import ExpenseForm from './expenses/ExpenseForm'
 import DailyCloseTabs from './dailyClose/DailyCloseTabs'
-import type { Buyer, SalesOrder, Sku } from './types'
+import TeardownProfileList from './teardownProfiles/TeardownProfileList'
+import TeardownProfileForm from './teardownProfiles/TeardownProfileForm'
+import type { Buyer, SalesOrder, Sku, TeardownProfile } from './types'
 
 type Section =
   | 'pos'
@@ -27,6 +29,7 @@ type Section =
   | 'count'
   | 'donors'
   | 'teardown'
+  | 'teardownProfiles'
   | 'skus'
   | 'buyers'
   | 'orders'
@@ -42,6 +45,7 @@ const NAV: { key: Section; label: string }[] = [
   { key: 'count', label: 'Count' },
   { key: 'donors', label: 'Donors' },
   { key: 'teardown', label: 'Teardown' },
+  { key: 'teardownProfiles', label: 'Teardown profiles' },
   { key: 'skus', label: 'SKUs' },
   { key: 'buyers', label: 'Buyers' },
   { key: 'orders', label: 'Orders' },
@@ -55,7 +59,7 @@ function AppShell() {
   const { loading, user, isStaff } = useAuth()
   const [section, setSection] = useState<Section>('pos')
   const [view, setView] = useState<View>('list')
-  const [editingRecord, setEditingRecord] = useState<Sku | Buyer | null>(null)
+  const [editingRecord, setEditingRecord] = useState<Sku | Buyer | TeardownProfile | null>(null)
   const [returningOrder, setReturningOrder] = useState<SalesOrder | null>(null)
 
   if (loading) {
@@ -105,6 +109,22 @@ function AppShell() {
       {section === 'donors' && view === 'form' && <DonorForm onDone={() => setView('list')} />}
 
       {section === 'teardown' && <TeardownScreen />}
+
+      {section === 'teardownProfiles' && view === 'list' && (
+        <TeardownProfileList
+          onCreate={() => {
+            setEditingRecord(null)
+            setView('form')
+          }}
+          onEdit={(profile) => {
+            setEditingRecord(profile)
+            setView('form')
+          }}
+        />
+      )}
+      {section === 'teardownProfiles' && view === 'form' && (
+        <TeardownProfileForm profile={editingRecord as TeardownProfile | null} onDone={() => setView('list')} />
+      )}
 
       {section === 'skus' && view === 'list' && (
         <SkuList
