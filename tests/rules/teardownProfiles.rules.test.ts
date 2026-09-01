@@ -58,7 +58,7 @@ describe('teardownProfiles rules', () => {
     await assertSucceeds(getDoc(doc(db, `teardownProfiles/${PROFILE_ID}`)))
   })
 
-  it('denies a write even from staff — seeded/backfilled directly, no callable writes it yet', async () => {
+  it('denies a direct client write even from staff — writes only ever go through the createTeardownProfile/updateTeardownProfile/deleteTeardownProfile callables (admin SDK)', async () => {
     const db = testEnv.authenticatedContext('staff1', { staff: true }).firestore()
     await assertFails(setDoc(doc(db, `teardownProfiles/${PROFILE_ID}`), PROFILE_DOC))
   })
