@@ -38,6 +38,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # functions/ has its own package.json (firebase-admin, firebase-functions,
+      # pdf-lib) — root's `npm ci` never touches it, so functions/src files
+      # that import a functions-only dependency (e.g. pdf-lib) fail to resolve
+      # in these test steps without this. Mirrors deploy-hosting.yml's own
+      # "Install functions dependencies" step.
+      - name: Install functions dependencies
+        run: npm ci --prefix functions
+
       - name: Run Firestore rules emulator tests
         run: npm run test:rules
 

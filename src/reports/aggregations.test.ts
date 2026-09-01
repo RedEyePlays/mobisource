@@ -5,14 +5,19 @@ import {
   agingBuckets,
   buyerRevenue,
   donorRoiByModel,
+  hstRemittanceReport,
   marginBySku,
+  salesSummaryByPaymentMethod,
   yieldRateByModel,
 } from './aggregations'
 import type {
   AdjustmentMovementInput,
   BuyerInput,
   DonorRoiInput,
+  PurchaseHstInput,
+  SalesOrderForRemittance,
   SalesOrderForRevenue,
+  SalesOrderForSummary,
   SkuModelInput,
   StockItemForAging,
   StockItemForMargin,
@@ -366,6 +371,166 @@ describe('buyerRevenue', () => {
       buyers,
     )
     expect(rows.map((r) => r.buyerId)).toEqual(['buyer1', 'small'])
+  })
+})
+
+describe('salesSummaryByPaymentMethod', () => {
+  const RANGE = { from: new Date('2026-08-01T00:00:00Z'), to: new Date('2026-08-31T23:59:59.999Z') }
+
+  const order = (overrides: Partial<SalesOrderForSummary> = {}): SalesOrderForSummary => ({
+    paymentMethod: 'cash',
+    confirmedAt: fakeTimestamp(new Date('2026-08-15T12:00:00Z')),
+    subtotal: cents(1000),
+    tax: cents(130),
+    total: cents(1130),
+    status: 'confirmed',
+    ...overrides,
+  })
+
+  it('groups a cash order into the cash bucket', () => {
+    const report = salesSummaryByPaymentMethod([order()], RANGE)
+    expect(report.byMethod).toEqual([
+      { method: 'cash', orderCount: 1, subtotal: 1000, tax: 130, total: 1130 },
+      { method: 'card', orderCount: 0, subtotal: 0, tax: 0, total: 0 },
+      { method: 'eTransfer', orderCount: 0, subtotal: 0, tax: 0, total: 0 },
+      { method: 'account', orderCount: 0, subtotal: 0, tax: 0, total: 0 },
+    ])
+    expect(report.grandTotal).toEqual({ orderCount: 1, subtotal: 1000, tax: 130, total: 1130 })
+  })
+
+  it('buckets a null paymentMethod as account', () => {
+    const report = salesSummaryByPaymentMethod([order({ paymentMethod: null })], RANGE)
+    expect(report.byMethod.find((r) => r.method === 'account')).toMatchObject({ orderCount: 1 })
+  })
+
+  it('sums multiple orders in the same bucket', () => {
+    const report = salesSummaryByPaymentMethod(
+      [order({ paymentMethod: 'card', subtotal: cents(500), tax: cents(65), total: cents(565) }),
+       order({ paymentMethod: 'card', subtotal: cents(300), tax: cents(39), total: cents(339) })],
+      RANGE,
+    )
+    expect(report.byMethod.find((r) => r.method === 'card')).toEqual({
+      method: 'card', orderCount: 2, subtotal: 800, tax: 104, total: 904,
+    })
+  })
+
+  it('excludes a quoted order — it never happened yet', () => {
+    const report = salesSummaryByPaymentMethod([order({ status: 'quoted', confirmedAt: null })], RANGE)
+    expect(report.grandTotal.orderCount).toBe(0)
+  })
+
+  it('counts shipped and paid the same as confirmed', () => {
+    const report = salesSummaryByPaymentMethod(
+      [order({ status: 'shipped' }), order({ status: 'paid' })],
+      RANGE,
+    )
+    expect(report.grandTotal.orderCount).toBe(2)
+  })
+
+  it('excludes an order confirmed before the range', () => {
+    const report = salesSummaryByPaymentMethod(
+      [order({ confirmedAt: fakeTimestamp(new Date('2026-07-31T23:59:59Z')) })],
+      RANGE,
+    )
+    expect(report.grandTotal.orderCount).toBe(0)
+  })
+
+  it('excludes an order confirmed after the range', () => {
+    const report = salesSummaryByPaymentMethod(
+      [order({ confirmedAt: fakeTimestamp(new Date('2026-09-01T00:00:01Z')) })],
+      RANGE,
+    )
+    expect(report.grandTotal.orderCount).toBe(0)
+  })
+
+  it('includes orders confirmed exactly at the range boundaries', () => {
+    const report = salesSummaryByPaymentMethod(
+      [order({ confirmedAt: fakeTimestamp(RANGE.from) }), order({ confirmedAt: fakeTimestamp(RANGE.to) })],
+      RANGE,
+    )
+    expect(report.grandTotal.orderCount).toBe(2)
+  })
+
+  it('groups a wholesale quote by its confirm date, not its (earlier) quote date', () => {
+    // Quoted in July, confirmed in August — belongs in the August summary.
+    const report = salesSummaryByPaymentMethod(
+      [order({ confirmedAt: fakeTimestamp(new Date('2026-08-05T00:00:00Z')) })],
+      RANGE,
+    )
+    expect(report.grandTotal.orderCount).toBe(1)
+  })
+})
+
+describe('hstRemittanceReport', () => {
+  // Local-calendar dates (not UTC ISO strings) so monthKey/quarterKey's use
+  // of local date fields lines up with what these tests construct,
+  // regardless of the timezone the test runner happens to be in.
+  const order = (overrides: Partial<SalesOrderForRemittance> = {}): SalesOrderForRemittance => ({
+    status: 'confirmed',
+    confirmedAt: fakeTimestamp(new Date(2026, 7, 15)), // Aug 15, 2026
+    tax: cents(1300),
+    ...overrides,
+  })
+  const purchase = (overrides: Partial<PurchaseHstInput> = {}): PurchaseHstInput => ({
+    at: fakeTimestamp(new Date(2026, 7, 10)), // Aug 10, 2026
+    hstPaidCAD: cents(400),
+    ...overrides,
+  })
+
+  it('nets HST collected against HST paid for the month and quarter containing both', () => {
+    const report = hstRemittanceReport([order()], [purchase()])
+    expect(report.byMonth).toEqual([{ period: '2026-08', hstCollected: 1300, hstPaid: 400, netOwing: 900 }])
+    expect(report.byQuarter).toEqual([{ period: '2026-Q3', hstCollected: 1300, hstPaid: 400, netOwing: 900 }])
+  })
+
+  it('excludes a quoted order — no tax was ever actually collected', () => {
+    const report = hstRemittanceReport([order({ status: 'quoted', confirmedAt: null })], [])
+    expect(report.byMonth).toEqual([])
+  })
+
+  it('counts shipped and paid the same as confirmed', () => {
+    const report = hstRemittanceReport([order({ status: 'shipped' }), order({ status: 'paid' })], [])
+    expect(report.byMonth[0].hstCollected).toBe(2600)
+  })
+
+  it('separates collected-only and paid-only periods when they fall in different months', () => {
+    const report = hstRemittanceReport(
+      [order({ confirmedAt: fakeTimestamp(new Date(2026, 7, 15)) })], // August
+      [purchase({ at: fakeTimestamp(new Date(2026, 8, 5)) })], // September
+    )
+    const aug = report.byMonth.find((r) => r.period === '2026-08')!
+    const sep = report.byMonth.find((r) => r.period === '2026-09')!
+    expect(aug).toEqual({ period: '2026-08', hstCollected: 1300, hstPaid: 0, netOwing: 1300 })
+    expect(sep).toEqual({ period: '2026-09', hstCollected: 0, hstPaid: 400, netOwing: -400 })
+  })
+
+  it('rolls July/August/September all into Q3, even though they are different months', () => {
+    const report = hstRemittanceReport(
+      [
+        order({ confirmedAt: fakeTimestamp(new Date(2026, 6, 1)), tax: cents(100) }), // July
+        order({ confirmedAt: fakeTimestamp(new Date(2026, 7, 1)), tax: cents(200) }), // August
+        order({ confirmedAt: fakeTimestamp(new Date(2026, 8, 1)), tax: cents(300) }), // September
+      ],
+      [],
+    )
+    expect(report.byMonth).toHaveLength(3)
+    expect(report.byQuarter).toEqual([{ period: '2026-Q3', hstCollected: 600, hstPaid: 0, netOwing: 600 }])
+  })
+
+  it('sorts periods chronologically', () => {
+    const report = hstRemittanceReport(
+      [
+        order({ confirmedAt: fakeTimestamp(new Date(2027, 0, 1)) }), // Jan 2027
+        order({ confirmedAt: fakeTimestamp(new Date(2026, 0, 1)) }), // Jan 2026
+        order({ confirmedAt: fakeTimestamp(new Date(2026, 11, 1)) }), // Dec 2026
+      ],
+      [],
+    )
+    expect(report.byMonth.map((r) => r.period)).toEqual(['2026-01', '2026-12', '2027-01'])
+  })
+
+  it('returns an empty report when there is nothing to remit', () => {
+    expect(hstRemittanceReport([], [])).toEqual({ byMonth: [], byQuarter: [] })
   })
 })
 

@@ -16,6 +16,9 @@ import Reports from './reports/Reports'
 import TeardownScreen from './teardown/TeardownScreen'
 import ReceivingScreen from './receiving/ReceivingScreen'
 import PosScreen from './pos/PosScreen'
+import ExpenseList from './expenses/ExpenseList'
+import ExpenseForm from './expenses/ExpenseForm'
+import DailyCloseTabs from './dailyClose/DailyCloseTabs'
 import type { Buyer, SalesOrder, Sku } from './types'
 
 type Section =
@@ -28,6 +31,8 @@ type Section =
   | 'buyers'
   | 'orders'
   | 'receiving'
+  | 'expenses'
+  | 'dailyClose'
   | 'reports'
 type View = 'list' | 'form' | 'return'
 
@@ -41,6 +46,8 @@ const NAV: { key: Section; label: string }[] = [
   { key: 'buyers', label: 'Buyers' },
   { key: 'orders', label: 'Orders' },
   { key: 'receiving', label: 'Receiving' },
+  { key: 'expenses', label: 'Expenses' },
+  { key: 'dailyClose', label: 'Daily close' },
   { key: 'reports', label: 'Reports' },
 ]
 
@@ -146,6 +153,11 @@ function AppShell() {
       )}
 
       {section === 'receiving' && <ReceivingScreen />}
+
+      {section === 'expenses' && view === 'list' && <ExpenseList onRecord={() => setView('form')} />}
+      {section === 'expenses' && view === 'form' && <ExpenseForm onDone={() => setView('list')} />}
+
+      {section === 'dailyClose' && <DailyCloseTabs />}
 
       {section === 'reports' && <Reports />}
     </div>

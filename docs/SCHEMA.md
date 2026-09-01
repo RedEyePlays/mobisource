@@ -160,6 +160,10 @@ shippingTotalCAD   number    cents, null while pending
 shippingAppliedAt  timestamp null unless shippingStatus was ever 'pending'
 totalDiscrepancyCAD number   cents, see §7 — 0 unless a late shipping
                               application left some cost unabsorbed
+hstPaidCAD         number    cents — HST actually paid on this shipment, an
+                              input tax credit (§17); 0 for most overseas
+                              aftermarket imports. Entered once at receiving
+                              time, never derived from unitCostCAD.
 lines              array     [{ skuCode, supplierSku, qty, unitCostUSD,
                                 unitCostCAD, shippingOverrideCurrency,
                                 shippingOverrideAmount,
@@ -185,6 +189,39 @@ Doc ID is a deterministic slug of `{supplier}__{supplierSku}` (see §7) —
 suppliers send their own part numbers, but `bulkStock` and
 `stockMovements` always record our `skuCode`; the supplier code is
 reference only.
+
+### `expenses` — a recorded business expense (§17)
+
+```
+expenseId     string
+date          timestamp when incurred — user-supplied, like donors.purchaseDate
+description   string
+amount        number    cents, CAD, total paid, tax included
+hstPaidCAD    number    cents — the HST portion of amount; 0 if none was charged
+createdAt     timestamp
+```
+
+Auto-id, create-only — no update/delete path was asked for; a mistaken
+entry gets a correcting entry, same reasoning as the append-only ledger.
+The other source of input tax credits alongside `bulkReceipts.hstPaidCAD`.
+
+### `dailyCloses` — one counter day's cash reconciliation (§18)
+
+```
+date                 string    'YYYY-MM-DD' (doc id) — closing the same
+                                date twice is rejected; this is the lock
+from, to             timestamp the [from, to) window actually queried
+cashSalesTotal       number    cents
+cardSalesTotal       number    cents
+eTransferSalesTotal  number    cents
+countedCash          number    cents — what the cashier counted
+cashVariance         number    cents — countedCash - cashSalesTotal
+closedAt             timestamp
+```
+
+Doc ID = `date`, which is what makes a close a lock: `closeDay` refuses to
+close a date that already has a doc. A record, like an invoice — once
+written, never updated.
 
 ### `teardowns` — the event that converts a donor into parts
 
@@ -264,6 +301,10 @@ taxStatus        string    the buyer's taxStatus *as of confirm* — snapshotted
 total            number    cents — subtotal + tax
 status           string    quoted | confirmed | shipped | paid | cancelled — see §14
 createdAt        timestamp
+confirmedAt      timestamp | null — set once, by confirmOrder; null while
+                            'quoted'. Date-range reports (§16/§17/§18) group
+                            by this, not createdAt, since a wholesale quote
+                            can sit for days before it's confirmed.
 paymentMethod    string    cash | card | eTransfer | null — see §8
 ```
 
@@ -879,6 +920,17 @@ in code, rather than a composite `(status, createdAt)` index — `quoted` is
 always a small, bounded set (everything else has already moved to a
 terminal status), so this stays correct without an index deployment.
 
+**Currently not deployed.** `expireStaleQuotes` is written and tested
+(`lib/expireStaleQuotes.ts` and its integration tests), but its `onSchedule`
+export is commented out in `functions/src/index.ts` — deploying any
+scheduled function requires the Cloud Scheduler API enabled on the GCP
+project, and the deploying service account doesn't currently have
+permission to auto-enable it, which failed the whole `functions` deploy.
+Quotes won't auto-expire on a timer until a project owner enables that API
+(or grants the deploy service account Service Usage Admin) and the export
+is restored — `cancelOrder` still works for an explicit cancel in the
+meantime.
+
 **What actually happens on cancel, for each line:**
 
 ```
@@ -967,3 +1019,103 @@ reason })`.
 `adjust` movement — when, which SKU/item, the qty delta, and why —
 newest first, straight off the ledger; nothing else needed to compute
 "what was corrected."
+
+---
+
+## 16. Sales summary report
+
+`Reports` → Sales summary. Realized orders (`confirmed | shipped | paid`
+— same filter as Buyer revenue, §9) over a date range, grouped by how
+they were paid:
+
+```
+cash | card | eTransfer | account
+```
+
+`account` is the bucket for `paymentMethod: null` — an on-account
+wholesale order, never a cash-register payment (§8). Each row shows order
+count, subtotal, HST, and total; a grand-total row sums across all four.
+All four rows always show, even at zero, so the report reads the same
+shape regardless of what happened in the range.
+
+Grouped by `confirmedAt`, inclusive of both ends of the picked range —
+see §3's note on why that's the field, not `createdAt`.
+
+---
+
+## 17. HST remittance report
+
+`Reports` → HST remittance. What's owed to the CRA for a period:
+
+```
+HST collected   Σ tax across realized orders (confirmed/shipped/paid),
+                grouped by confirmedAt
+HST paid        Σ bulkReceipts.hstPaidCAD + Σ expenses.hstPaidCAD, grouped
+                by their own date (receivedAt / expenses.date) — the
+                input tax credits
+net owing       collected − paid (negative means a refund is owed instead)
+```
+
+Broken down **by month and by quarter**, since the business may file
+either way — both are computed from the same source data, not one derived
+from the other. Periods are keyed by *local* calendar (not UTC): this
+report is read by someone filing in their own timezone, and a late-night
+sale shouldn't land in the wrong month just because UTC has already
+rolled over.
+
+Two sources feed "HST paid": `bulkReceipts.hstPaidCAD` (§3, §7) for
+supplier shipments, and the new `expenses` collection (§3) for anything
+else — rent, utilities, supplies. Neither is derived from cost fields
+already on those docs (e.g. `unitCostCAD`) — tax treatment isn't
+recoverable from a landed cost alone, so both are entered explicitly at
+receiving/recording time and default to 0.
+
+---
+
+## 18. Daily close
+
+End of day at the counter: `closeDay({ date, fromMs, toMs, countedCash })`
+sums that day's realized sales by payment method and locks the day.
+
+```
+cashSalesTotal, cardSalesTotal, eTransferSalesTotal
+                Σ order.total for every salesOrder with a confirmedAt in
+                [from, to), grouped by paymentMethod. Every such order is
+                realized for good — confirmedAt is set once by
+                confirmOrder and nothing (a return included) ever moves an
+                order back off a realized status — so no separate status
+                filter is needed.
+countedCash     what the cashier counted in the drawer
+cashVariance    countedCash - cashSalesTotal — negative is short, positive
+                is over
+```
+
+`account` (on-account, `paymentMethod: null`) sales are outside this —
+the close is specifically about what's in the cash register/card
+terminal/e-transfer inbox tonight, not wholesale invoicing.
+
+**Locking:** the doc ID is `date` ('YYYY-MM-DD'), so `closeDay` rejects a
+second close for the same date outright — a closed day is a record, not
+a draft; there's no path to re-close or edit one. Reviewing a locked day
+is just reading `dailyCloses/{date}`.
+
+**Decision made without asking — the day's window.** `closeDay` doesn't
+derive `[from, to)` from `date` itself; the caller (the browser) computes
+it from its own local midnight-to-midnight and passes `fromMs`/`toMs`
+directly. A Cloud Function runs in UTC by default, and naive UTC day
+boundaries would misattribute an evening sale (Eastern time) to the wrong
+calendar day — there's no dependency-free way to compute IANA-timezone-
+aware boundaries server-side. The server only sanity-checks the window (a
+plausible span, roughly a day) rather than re-deriving it; the sums
+themselves are still computed authoritatively there, straight off
+`salesOrders` — only the window's boundary is client-supplied, not any
+dollar figure.
+
+**The close screen** (`DailyCloseScreen`) shows a live preview of the same
+three totals (queried the same way, client-side) before commit, an
+editable counted-cash field, and the resulting variance — committing
+calls `closeDay` and switches to a read-only view of what was recorded.
+Revisiting an already-closed day (same screen, same date) shows that
+locked record instead of the input form. **The closes list**
+(`CloseList`) shows every past close, newest first, for reviewing
+variance history at a glance.

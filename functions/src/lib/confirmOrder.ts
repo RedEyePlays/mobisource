@@ -179,6 +179,7 @@ export async function confirmOrder(
       taxRateBps: appliedRateBps,
       taxStatus,
       total,
+      confirmedAt: FieldValue.serverTimestamp(),
     })
 
     return { orderId, status: 'confirmed' as const, subtotal: order.subtotal, tax, taxRateBps: appliedRateBps, total }

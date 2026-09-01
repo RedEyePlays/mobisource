@@ -252,6 +252,8 @@ export interface SalesOrder {
   total: Cents
   status: SalesOrderStatus
   createdAt: Timestamp
+  /** Set by confirmOrder, once, the moment the sale actually happens — null while still 'quoted'. A wholesale quote can sit for days before confirm, so this (not createdAt) is what date-range reports (§16/§17/§18) group by; it never moves again after that first confirm. */
+  confirmedAt: Timestamp | null
   /** Set by confirmOrder; null until confirmed, and stays null for an on-account order with no cash-register payment. */
   paymentMethod: PaymentMethod | null
 }
@@ -309,6 +311,8 @@ export interface BulkReceipt {
   shippingAppliedAt: Timestamp | null
   /** Σ lines[].discrepancyCAD — shipping cost from a late application that landed on already-sold units and was never absorbed. 0 unless that's happened. */
   totalDiscrepancyCAD: Cents
+  /** HST actually paid on this shipment, in CAD — an input tax credit (docs/SCHEMA.md §17). 0 when none was charged (most overseas aftermarket imports); entered once at receiving time, never recomputed from unitCostCAD, since tax treatment isn't derivable from the landed cost alone. */
+  hstPaidCAD: Cents
   lines: BulkReceiptLine[]
 }
 
@@ -462,4 +466,33 @@ export interface CreditNote {
 /** `counters/creditNotes` — same shape and guarantee as InvoiceCounter, but its own independent sequence. */
 export interface CreditNoteCounter {
   last: number
+}
+
+/** `expenses/{expenseId}` (docs/SCHEMA.md §17) — a recorded business expense with HST paid, the other source of input tax credits alongside bulkReceipts.hstPaidCAD. Auto-id, create-only — no update/delete path was asked for; a mistaken entry needs a correcting entry, same reasoning as an append-only ledger. */
+export interface Expense {
+  expenseId: string
+  /** When the expense was incurred — user-supplied (like donors.purchaseDate), since it's normally recorded some time after the fact. */
+  date: Timestamp
+  description: string
+  /** Total paid, in CAD cents, tax included. */
+  amount: Cents
+  /** The HST portion of `amount` — 0 if none was charged. */
+  hstPaidCAD: Cents
+  createdAt: Timestamp
+}
+
+/** `dailyCloses/{date}` (docs/SCHEMA.md §18) — doc ID is the closed date ('YYYY-MM-DD'), which is what locks a day: closeDay refuses to close the same date twice. A record, like an invoice — once written, never updated. */
+export interface DailyClose {
+  date: string
+  /** The [from, to) window closeDay actually queried — kept for audit, since the window's local-midnight boundaries are supplied by the caller (see closeDay.ts). */
+  from: Timestamp
+  to: Timestamp
+  cashSalesTotal: Cents
+  cardSalesTotal: Cents
+  eTransferSalesTotal: Cents
+  /** What the cashier counted in the drawer. */
+  countedCash: Cents
+  /** countedCash - cashSalesTotal. Negative means short, positive means over. */
+  cashVariance: Cents
+  closedAt: Timestamp
 }

@@ -1,15 +1,25 @@
 import { useEffect, useMemo, useState } from 'react'
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from '../firebase'
-import type { Buyer, Donor, SalesOrder, Sku, StockItem, StockMovement } from '../types'
+import type { BulkReceipt, Buyer, Donor, Expense, SalesOrder, Sku, StockItem, StockMovement } from '../types'
 import DonorRoiReport from './DonorRoiReport'
 import MarginReport from './MarginReport'
 import YieldReport from './YieldReport'
 import AgingReportView from './AgingReportView'
 import BuyerRevenueReport from './BuyerRevenueReport'
 import AdjustmentsReport from './AdjustmentsReport'
+import SalesSummaryReport from './SalesSummaryReport'
+import HstRemittanceReport from './HstRemittanceReport'
 
-type ReportTab = 'donorRoi' | 'margin' | 'yield' | 'aging' | 'buyerRevenue' | 'adjustments'
+type ReportTab =
+  | 'donorRoi'
+  | 'margin'
+  | 'yield'
+  | 'aging'
+  | 'buyerRevenue'
+  | 'adjustments'
+  | 'salesSummary'
+  | 'hstRemittance'
 
 const TABS: { key: ReportTab; label: string }[] = [
   { key: 'donorRoi', label: 'Donor ROI by model' },
@@ -18,6 +28,8 @@ const TABS: { key: ReportTab; label: string }[] = [
   { key: 'aging', label: 'Aging' },
   { key: 'buyerRevenue', label: 'Buyer revenue' },
   { key: 'adjustments', label: 'Adjustments' },
+  { key: 'salesSummary', label: 'Sales summary' },
+  { key: 'hstRemittance', label: 'HST remittance' },
 ]
 
 export default function Reports() {
@@ -28,6 +40,8 @@ export default function Reports() {
   const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([])
   const [buyers, setBuyers] = useState<Buyer[]>([])
   const [movements, setMovements] = useState<StockMovement[]>([])
+  const [bulkReceipts, setBulkReceipts] = useState<BulkReceipt[]>([])
+  const [expenses, setExpenses] = useState<Expense[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -38,14 +52,17 @@ export default function Reports() {
 
     async function load() {
       setLoading(true)
-      const [donorsSnap, itemsSnap, skusSnap, ordersSnap, buyersSnap, movementsSnap] = await Promise.all([
-        getDocs(collection(db, 'donors')),
-        getDocs(collection(db, 'stockItems')),
-        getDocs(collection(db, 'skus')),
-        getDocs(collection(db, 'salesOrders')),
-        getDocs(collection(db, 'buyers')),
-        getDocs(collection(db, 'stockMovements')),
-      ])
+      const [donorsSnap, itemsSnap, skusSnap, ordersSnap, buyersSnap, movementsSnap, receiptsSnap, expensesSnap] =
+        await Promise.all([
+          getDocs(collection(db, 'donors')),
+          getDocs(collection(db, 'stockItems')),
+          getDocs(collection(db, 'skus')),
+          getDocs(collection(db, 'salesOrders')),
+          getDocs(collection(db, 'buyers')),
+          getDocs(collection(db, 'stockMovements')),
+          getDocs(collection(db, 'bulkReceipts')),
+          getDocs(collection(db, 'expenses')),
+        ])
       if (cancelled) return
 
       setDonors(donorsSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as Donor))
@@ -54,6 +71,8 @@ export default function Reports() {
       setSalesOrders(ordersSnap.docs.map((d) => d.data() as SalesOrder))
       setBuyers(buyersSnap.docs.map((d) => d.data() as Buyer))
       setMovements(movementsSnap.docs.map((d) => d.data() as StockMovement))
+      setBulkReceipts(receiptsSnap.docs.map((d) => d.data() as BulkReceipt))
+      setExpenses(expensesSnap.docs.map((d) => d.data() as Expense))
       setLoading(false)
     }
 
@@ -92,6 +111,10 @@ export default function Reports() {
           {tab === 'aging' && <AgingReportView stockItems={stockItems} now={now} />}
           {tab === 'buyerRevenue' && <BuyerRevenueReport salesOrders={salesOrders} buyers={buyers} />}
           {tab === 'adjustments' && <AdjustmentsReport movements={movements} />}
+          {tab === 'salesSummary' && <SalesSummaryReport salesOrders={salesOrders} />}
+          {tab === 'hstRemittance' && (
+            <HstRemittanceReport salesOrders={salesOrders} bulkReceipts={bulkReceipts} expenses={expenses} />
+          )}
         </>
       )}
     </div>
