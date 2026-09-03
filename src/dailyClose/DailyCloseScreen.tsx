@@ -99,7 +99,10 @@ export default function DailyCloseScreen() {
   if (existing === undefined && !result) {
     return (
       <div className="p-4 sm:p-6">
-        <p className="text-muted">Loading…</p>
+        <div className="loading-state">
+          <span className="spinner" />
+          Loading…
+        </div>
       </div>
     )
   }

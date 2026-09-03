@@ -95,7 +95,7 @@ export default function DonorList({ onIntake }: { onIntake: () => void }) {
 
   return (
     <div className="p-4 sm:p-6">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <div className="page-header">
         <h2 className="page-title">Donors</h2>
         <div className="flex flex-wrap gap-2">
           <button onClick={() => setRefreshKey((k) => k + 1)} className="btn-secondary btn-sm">
@@ -108,9 +108,12 @@ export default function DonorList({ onIntake }: { onIntake: () => void }) {
       </div>
 
       {loading ? (
-        <p>Loading…</p>
+        <div className="loading-state">
+          <span className="spinner" />
+          Loading…
+        </div>
       ) : donors.length === 0 ? (
-        <p className="text-muted">No donors yet.</p>
+        <p className="empty-state">No donors yet.</p>
       ) : (
         <div className="table-wrap">
           <table className="table-base">

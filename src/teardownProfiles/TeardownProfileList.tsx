@@ -54,7 +54,7 @@ export default function TeardownProfileList({
 
   return (
     <div className="p-4 sm:p-6">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <div className="page-header">
         <h2 className="page-title">Teardown profiles</h2>
         <div className="flex flex-wrap gap-2">
           <button onClick={() => setRefreshKey((k) => k + 1)} className="btn-secondary btn-sm">
@@ -66,12 +66,15 @@ export default function TeardownProfileList({
         </div>
       </div>
 
-      {error && <p className="text-danger mb-2 text-sm">{error}</p>}
+      {error && <p className="banner-danger mb-2">{error}</p>}
 
       {loading ? (
-        <p className="text-muted">Loading…</p>
+        <div className="loading-state">
+          <span className="spinner" />
+          Loading…
+        </div>
       ) : profiles.length === 0 ? (
-        <p className="text-muted">No teardown profiles yet.</p>
+        <p className="empty-state">No teardown profiles yet.</p>
       ) : (
         <div className="table-wrap">
           <table className="table-base">

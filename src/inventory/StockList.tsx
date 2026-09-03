@@ -103,7 +103,7 @@ export default function StockList() {
 
   return (
     <div className="p-4 sm:p-6">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <div className="page-header">
         <h2 className="page-title">Stock</h2>
         <button onClick={() => setRefreshKey((k) => k + 1)} className="btn-secondary btn-sm">
           Refresh
@@ -169,7 +169,10 @@ export default function StockList() {
       </div>
 
       {loading ? (
-        <p className="text-muted">Loading…</p>
+        <div className="loading-state">
+          <span className="spinner" />
+          Loading…
+        </div>
       ) : filteredItems.length === 0 ? (
         <p className="text-muted">No stock items match these filters.</p>
       ) : (

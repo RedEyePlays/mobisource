@@ -313,7 +313,7 @@ export default function TeardownChecklist({
         </div>
       )}
 
-      {submitError && <p className="text-danger mt-4">{submitError}</p>}
+      {submitError && <p className="banner-danger mt-4">{submitError}</p>}
 
       {printWarning && (
         <div className="banner-warning mt-4 flex flex-col gap-2">

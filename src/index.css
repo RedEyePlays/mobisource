@@ -32,7 +32,7 @@
     @apply min-h-screen bg-slate-50 dark:bg-slate-950;
   }
   .card {
-    @apply rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900;
+    @apply rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none;
   }
   .page-title {
     @apply text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50;
@@ -40,19 +40,25 @@
   .section-title {
     @apply text-base font-semibold text-slate-900 dark:text-slate-100;
   }
+  /* Title row + actions at the top of a screen, with a hairline underneath
+     to separate it from the content — same shape repeated on every list
+     screen, so it's a shared class rather than copy-pasted utilities. */
+  .page-header {
+    @apply mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-4 dark:border-slate-800;
+  }
 
   /* Buttons — min 44px tap target, thumb-reachable, bold identity color -- */
   .btn-primary {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-base font-semibold text-white transition-colors hover:bg-indigo-500 active:scale-[0.98] active:bg-indigo-700 disabled:pointer-events-none disabled:opacity-40 dark:bg-indigo-500 dark:hover:bg-indigo-400;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-base font-semibold text-white transition-colors hover:bg-indigo-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 active:scale-[0.98] active:bg-indigo-700 disabled:pointer-events-none disabled:opacity-40 dark:bg-indigo-500 dark:hover:bg-indigo-400 dark:focus-visible:ring-offset-slate-950;
   }
   .btn-secondary {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-base font-semibold text-slate-900 transition-colors hover:bg-slate-50 active:scale-[0.98] active:bg-slate-100 disabled:pointer-events-none disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-base font-semibold text-slate-900 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 active:scale-[0.98] active:bg-slate-100 disabled:pointer-events-none disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 dark:focus-visible:ring-offset-slate-950;
   }
   .btn-danger {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-300 bg-white px-4 py-3 text-base font-semibold text-red-700 transition-colors hover:bg-red-50 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40 dark:border-red-900 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-red-950;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-300 bg-white px-4 py-3 text-base font-semibold text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40 dark:border-red-900 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-red-950 dark:focus-visible:ring-offset-slate-950;
   }
   .btn-ghost {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-3 text-base font-semibold text-slate-600 transition-colors hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-40 dark:text-slate-300 dark:hover:bg-slate-800;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-3 text-base font-semibold text-slate-600 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 disabled:pointer-events-none disabled:opacity-40 dark:text-slate-300 dark:hover:bg-slate-800;
   }
   .btn-sm {
     @apply min-h-9 rounded-lg px-3 py-1.5 text-sm;
@@ -109,6 +115,19 @@
     @apply text-slate-500 dark:text-slate-400;
   }
 
+  /* Loading / empty placeholders — one shared look everywhere a list or
+     form is waiting on data or has nothing to show, instead of a bare
+     line of text that reads as unfinished. ----------------------------- */
+  .loading-state {
+    @apply flex items-center gap-2 py-6 text-slate-500 dark:text-slate-400;
+  }
+  .spinner {
+    @apply h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-slate-300 border-t-indigo-600 dark:border-slate-700 dark:border-t-indigo-400;
+  }
+  .empty-state {
+    @apply rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 px-6 py-10 text-center text-slate-500 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400;
+  }
+
   /* Numbers legible at arm's length ----------------------------------------- */
   .num-hero {
     @apply text-3xl font-bold tracking-tight text-slate-900 tabular-nums dark:text-slate-50;
@@ -136,13 +155,16 @@
   .table-base td {
     @apply border-b border-slate-100 py-2.5 pr-4 align-middle text-slate-800 dark:border-slate-800/80 dark:text-slate-200;
   }
+  .table-base tbody tr {
+    @apply transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40;
+  }
 
   /* Top nav ------------------------------------------------------------------ */
   .nav-link-on {
     @apply min-h-10 shrink-0 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold whitespace-nowrap text-white transition-colors;
   }
   .nav-link-off {
-    @apply min-h-10 shrink-0 rounded-lg px-3 py-2 text-sm font-semibold whitespace-nowrap text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800;
+    @apply min-h-10 shrink-0 rounded-lg px-3 py-2 text-sm font-semibold whitespace-nowrap text-slate-600 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 dark:text-slate-300 dark:hover:bg-slate-800;
   }
 
   /* Tab strip (Reports, Receiving) -------------------------------------------- */

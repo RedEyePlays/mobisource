@@ -124,7 +124,7 @@ export default function OrderBuilder({ onDone }: { onDone: () => void }) {
           </div>
         </div>
 
-        {error && <p className="text-danger mb-4 text-sm">{error}</p>}
+        {error && <p className="banner-danger mb-4">{error}</p>}
 
         <div className="flex flex-col gap-2 sm:flex-row">
           <button onClick={handleConfirm} disabled={submitting} className="btn-primary btn-block sm:w-auto">
@@ -189,7 +189,7 @@ export default function OrderBuilder({ onDone }: { onDone: () => void }) {
         </div>
       )}
 
-      {error && <p className="text-danger mb-4 text-sm">{error}</p>}
+      {error && <p className="banner-danger mb-4">{error}</p>}
 
       <div className="flex flex-col gap-2 sm:flex-row">
         <button

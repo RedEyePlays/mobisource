@@ -167,7 +167,7 @@ export default function DonorForm({ onDone }: { onDone: () => void }) {
           </select>
         </label>
 
-        {error && <p className="text-danger text-sm">{error}</p>}
+        {error && <p className="banner-danger">{error}</p>}
 
         {warning && (
           <div className="banner-warning flex flex-col gap-2">

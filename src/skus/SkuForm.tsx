@@ -184,7 +184,7 @@ export default function SkuForm({ sku, onDone }: { sku: Sku | null; onDone: () =
           <input {...field('listPriceTier3')} type="number" step="0.01" min="0" className="input" required />
         </label>
 
-        {error && <p className="text-danger text-sm">{error}</p>}
+        {error && <p className="banner-danger">{error}</p>}
 
         <div className="mt-2 flex flex-col gap-2 sm:flex-row">
           <button type="submit" disabled={submitting} className="btn-primary sm:flex-1">

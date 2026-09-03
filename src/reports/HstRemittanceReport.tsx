@@ -47,7 +47,7 @@ export default function HstRemittanceReport({
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-muted">No HST activity yet.</p>
+        <p className="empty-state">No HST activity yet.</p>
       ) : (
         <div className="table-wrap">
           <table className="table-base">
