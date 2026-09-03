@@ -11,7 +11,7 @@ export default function AdjustmentsReport({ movements }: { movements: StockMovem
   return (
     <div>
       {rows.length === 0 ? (
-        <p className="text-muted">No adjustments yet.</p>
+        <p className="empty-state">No adjustments yet.</p>
       ) : (
         <div className="table-wrap">
           <table className="table-base">

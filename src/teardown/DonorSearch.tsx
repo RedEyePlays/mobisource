@@ -50,7 +50,10 @@ export default function DonorSearch({ onSelect }: { onSelect: (donor: Donor) => 
       />
 
       {loading ? (
-        <p className="text-lg">Loading…</p>
+        <div className="loading-state text-lg">
+          <span className="spinner" />
+          Loading…
+        </div>
       ) : filtered.length === 0 ? (
         <p className="text-muted text-lg">
           {donors.length === 0 ? 'No intact donors to tear down.' : 'No donors match that search.'}

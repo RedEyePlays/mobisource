@@ -12,7 +12,7 @@ export default function YieldReport({ stockItems, skus }: { stockItems: StockIte
   return (
     <div>
       {rows.length === 0 ? (
-        <p className="text-muted">No stock items yet.</p>
+        <p className="empty-state">No stock items yet.</p>
       ) : (
         <div className="table-wrap">
           <table className="table-base">

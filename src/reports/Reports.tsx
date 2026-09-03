@@ -102,7 +102,10 @@ export default function Reports() {
       </div>
 
       {loading ? (
-        <p className="text-muted">Loading…</p>
+        <div className="loading-state">
+          <span className="spinner" />
+          Loading…
+        </div>
       ) : (
         <>
           {tab === 'donorRoi' && <DonorRoiReport donors={donors} stockItems={stockItems} />}

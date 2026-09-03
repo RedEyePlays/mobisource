@@ -364,7 +364,7 @@ export default function BulkReceiveForm({ onDone }: { onDone: () => void }) {
           </button>
         </div>
 
-        {error && <p className="text-danger text-sm">{error}</p>}
+        {error && <p className="banner-danger">{error}</p>}
 
         {printWarning && (
           <div className="banner-warning flex flex-col gap-2">

@@ -182,7 +182,7 @@ export default function TeardownProfileForm({
           </button>
         </div>
 
-        {error && <p className="text-danger text-sm">{error}</p>}
+        {error && <p className="banner-danger">{error}</p>}
 
         <div className="mt-2 flex flex-col gap-2 sm:flex-row">
           <button type="submit" disabled={submitting} className="btn-primary sm:flex-1">

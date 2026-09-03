@@ -17,7 +17,7 @@ export default function DonorRoiReport({ donors, stockItems }: { donors: Donor[]
     <div>
       <h3 className="section-title mb-2">By model</h3>
       {report.byModel.length === 0 ? (
-        <p className="text-muted mb-4">No torn-down donors yet.</p>
+        <p className="empty-state mb-4">No torn-down donors yet.</p>
       ) : (
         <div className="table-wrap mb-6">
           <table className="table-base">
@@ -57,7 +57,7 @@ export default function DonorRoiReport({ donors, stockItems }: { donors: Donor[]
 
       <h3 className="section-title mb-2">By donor</h3>
       {report.byDonor.length === 0 ? (
-        <p className="text-muted">No torn-down donors yet.</p>
+        <p className="empty-state">No torn-down donors yet.</p>
       ) : (
         <div className="table-wrap">
           <table className="table-base">

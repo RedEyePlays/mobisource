@@ -12,7 +12,7 @@ export default function BuyerRevenueReport({ salesOrders, buyers }: { salesOrder
   return (
     <div>
       {rows.length === 0 ? (
-        <p className="text-muted">No realized revenue yet.</p>
+        <p className="empty-state">No realized revenue yet.</p>
       ) : (
         <div className="table-wrap">
           <table className="table-base">

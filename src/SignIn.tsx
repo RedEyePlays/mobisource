@@ -46,7 +46,7 @@ export default function SignIn() {
           autoComplete="current-password"
           required
         />
-        {error && <p className="text-danger text-sm">{error}</p>}
+        {error && <p className="banner-danger">{error}</p>}
         <button type="submit" disabled={submitting} className="btn-primary btn-block">
           {submitting ? 'Signing in…' : 'Sign in'}
         </button>

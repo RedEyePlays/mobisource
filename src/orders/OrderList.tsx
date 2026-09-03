@@ -93,9 +93,12 @@ export default function OrderList({ onCreate, onReturn }: { onCreate: () => void
       {actionError && <p className="banner-danger mb-3">{actionError}</p>}
 
       {loading ? (
-        <p className="text-muted">Loading…</p>
+        <div className="loading-state">
+          <span className="spinner" />
+          Loading…
+        </div>
       ) : orders.length === 0 ? (
-        <p className="text-muted">No orders yet.</p>
+        <p className="empty-state">No orders yet.</p>
       ) : (
         <div className="table-wrap">
           <table className="table-base">

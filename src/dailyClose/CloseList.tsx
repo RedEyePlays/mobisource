@@ -40,9 +40,12 @@ export default function CloseList() {
       </div>
 
       {loading ? (
-        <p className="text-muted">Loading…</p>
+        <div className="loading-state">
+          <span className="spinner" />
+          Loading…
+        </div>
       ) : closes.length === 0 ? (
-        <p className="text-muted">No days closed yet.</p>
+        <p className="empty-state">No days closed yet.</p>
       ) : (
         <div className="table-wrap">
           <table className="table-base">

@@ -28,7 +28,7 @@ export default function PendingReceiptsList({ onSelect }: { onSelect: (receipt: 
 
   return (
     <div className="mx-auto max-w-2xl p-4 sm:p-6">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <div className="page-header">
         <h2 className="page-title">Shipping pending</h2>
         <button onClick={() => setRefreshKey((k) => k + 1)} className="btn-secondary btn-sm">
           Refresh
@@ -36,7 +36,10 @@ export default function PendingReceiptsList({ onSelect }: { onSelect: (receipt: 
       </div>
 
       {loading ? (
-        <p className="text-muted">Loading…</p>
+        <div className="loading-state">
+          <span className="spinner" />
+          Loading…
+        </div>
       ) : receipts.length === 0 ? (
         <p className="text-muted">No receipts waiting on a shipping bill.</p>
       ) : (

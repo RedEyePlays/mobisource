@@ -188,7 +188,7 @@ export default function ApplyShippingForm({
           </table>
         </div>
 
-        {error && <p className="text-danger text-sm">{error}</p>}
+        {error && <p className="banner-danger">{error}</p>}
 
         <div className="flex flex-col gap-2 sm:flex-row">
           <button type="submit" disabled={submitting} className="btn-primary">

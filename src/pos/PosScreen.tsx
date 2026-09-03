@@ -314,7 +314,10 @@ export default function PosScreen() {
   if (!buyer) {
     return (
       <div className="p-6">
-        <p className="text-muted">Loading…</p>
+        <div className="loading-state">
+          <span className="spinner" />
+          Loading…
+        </div>
       </div>
     )
   }
